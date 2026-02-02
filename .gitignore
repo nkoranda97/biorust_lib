@@ -1,0 +1,29 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+/target
+**/target
+*.so
+*.dylib
+*.pyd
+
+# Rust
+/target/
+**/target/
+
+# Python build artifacts
+src/biorust/_native*.so
+src/biorust/_native*.pyd
+src/biorust/_native*.dll
+*.so
+*.dylib
+*.pyd
+

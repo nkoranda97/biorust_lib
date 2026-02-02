@@ -1,0 +1,4 @@
+# Cargo.toml
+[workspace]
+members = ["biorust-core", "biorust-py"]
+resolver = "2"

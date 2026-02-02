@@ -1,0 +1,19 @@
+[package]
+name = "biorust-core"
+version = "0.0.1"
+edition = "2021"
+description = ""
+
+[lib]
+name = "biorust_core"
+path = "src/lib.rs"
+
+[dependencies]
+thiserror = "1.0"
+bit-set = "0.8"
+vector-map = "1.0.2"
+
+[dev-dependencies]
+proptest = "1.4"
+
+

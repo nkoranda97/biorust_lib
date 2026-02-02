@@ -1,0 +1,23 @@
+[build-system]
+requires = ["maturin>=1.5"]
+build-backend = "maturin"
+
+
+[project]
+name = "biorust"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13.11"
+dependencies = [
+    "maturin>=1.11.5",
+    "pytest>=9.0.2",
+]
+
+[tool.maturin]
+module-name = "biorust._native"
+manifest-path = "biorust-py/Cargo.toml"
+python-source = "src"
+
+[project.optional-dependencies]
+dev = ["pytest", "maturin"]

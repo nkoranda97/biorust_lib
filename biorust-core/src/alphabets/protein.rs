@@ -5,5 +5,5 @@ pub fn alphabet() -> Alphabet {
 }
 
 pub fn iupac_alphabet() -> Alphabet {
-    Alphabet::new(b"ABCDEFGHIKLMNPQRSTVWXYZabcdefghiklmnpqrstvwxyz")
+    Alphabet::new(b"ABCDEFGHIKLMNPQRSTVWXYZ*abcdefghiklmnpqrstvwxyz")
 }

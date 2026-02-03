@@ -14,6 +14,11 @@ impl ProteinSeq {
         Ok(Self { bytes })
     }
 
+    #[inline]
+    pub(crate) fn from_bytes_unchecked(bytes: Vec<u8>) -> Self {
+        Self { bytes }
+    }
+
     pub fn as_bytes(&self) -> &[u8] {
         &self.bytes
     }

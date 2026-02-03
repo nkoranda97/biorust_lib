@@ -1,3 +1,3 @@
-from ._native import DNA, complement
+from ._native import DNA, Protein, complement
 
-__all__ = ["DNA", "complement"]
+__all__ = ["DNA", "Protein", "complement"]

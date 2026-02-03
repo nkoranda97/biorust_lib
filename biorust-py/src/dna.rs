@@ -5,6 +5,7 @@ use pyo3::exceptions::{PyIndexError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule, PySlice, PyString, PyTuple};
 
+use crate::protein::Protein;
 use crate::utils::{self, PyDnaNeedle};
 use biorust_core::seq::dna::DnaSeq;
 
@@ -38,6 +39,12 @@ impl DNA {
     fn complement(&self) -> Self {
         Self {
             inner: self.inner.complement(),
+        }
+    }
+
+    fn translate(&self) -> Protein {
+        Protein {
+            inner: self.inner.translate(),
         }
     }
 

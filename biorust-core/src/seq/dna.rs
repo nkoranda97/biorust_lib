@@ -1,7 +1,9 @@
 use crate::alphabets::dna;
 use crate::error::{BioError, BioResult};
+use crate::seq::protein::ProteinSeq;
 
 use memchr::{memchr_iter, memmem};
+use std::sync::LazyLock;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DnaSeq {
@@ -32,6 +34,29 @@ impl DnaSeq {
             out.push(dna::complement(base));
         }
         Self { bytes: out }
+    }
+
+    pub fn translate(&self) -> ProteinSeq {
+        let bytes = self.as_bytes();
+        let mut out = Vec::with_capacity(bytes.len() / 3);
+        let base_index = &*BASE_INDEX;
+
+        for codon in bytes.chunks_exact(3) {
+            let i1 = base_index[codon[0] as usize];
+            let i2 = base_index[codon[1] as usize];
+            let i3 = base_index[codon[2] as usize];
+
+            let aa = if i1 < 4 && i2 < 4 && i3 < 4 {
+                let idx = ((i1 as usize) << 4) | ((i2 as usize) << 2) | (i3 as usize);
+                CODON_TABLE[idx]
+            } else {
+                b'X'
+            };
+
+            out.push(aa);
+        }
+
+        ProteinSeq::from_bytes_unchecked(out)
     }
 
     pub fn count<'a, N>(&'a self, sub: N) -> BioResult<usize>
@@ -302,6 +327,21 @@ fn count_subslice_nonoverlapping(hay: &[u8], needle: &[u8]) -> usize {
 
     count
 }
+
+static BASE_INDEX: LazyLock<[u8; 256]> = LazyLock::new(|| {
+    let mut map = [255u8; 256];
+    map[b'A' as usize] = 0;
+    map[b'C' as usize] = 1;
+    map[b'G' as usize] = 2;
+    map[b'T' as usize] = 3;
+    map[b'a' as usize] = 0;
+    map[b'c' as usize] = 1;
+    map[b'g' as usize] = 2;
+    map[b't' as usize] = 3;
+    map
+});
+
+const CODON_TABLE: [u8; 64] = *b"KNKNTTTTRSRSIIMIQHQHPPPPRRRRLLLLEDEDAAAAGGGGVVVV*Y*YSSSS*CWCLFLF";
 
 #[cfg(test)]
 mod tests {

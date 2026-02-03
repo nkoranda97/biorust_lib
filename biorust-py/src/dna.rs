@@ -3,7 +3,7 @@
 use pyo3::basic::CompareOp;
 use pyo3::exceptions::{PyIndexError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyModule, PySlice, PyString};
+use pyo3::types::{PyBytes, PyModule, PySlice, PyString, PyTuple};
 
 use crate::utils::{self, PyDnaNeedle};
 use biorust_core::seq::dna::DnaSeq;
@@ -210,6 +210,151 @@ impl DNA {
         res.map_err(|e| PyValueError::new_err(e.to_string()))
     }
 
+    #[pyo3(signature = (prefix, start=None, end=None))]
+    fn startswith(
+        &self,
+        prefix: &Bound<'_, PyAny>,
+        start: Option<isize>,
+        end: Option<isize>,
+    ) -> PyResult<bool> {
+        let (s, e) = utils::normalize_range(self.as_bytes().len(), start, end);
+        let bytes = self.as_bytes();
+        let window: &[u8] = if s <= e { &bytes[s..e] } else { &bytes[0..0] };
+
+        let matches = |needle: PyDnaNeedle<'_>| -> bool {
+            match needle {
+                PyDnaNeedle::Dna(other) => window.starts_with(other.as_bytes()),
+                PyDnaNeedle::Bytes(seq) => window.starts_with(seq.as_slice()),
+                PyDnaNeedle::Byte(b) => window.first().map(|v| *v == b).unwrap_or(false),
+            }
+        };
+
+        if let Ok(tuple) = prefix.downcast::<PyTuple>() {
+            for item in tuple.iter() {
+                let needle = utils::extract_dna_needle(&item)?;
+                if matches(needle) {
+                    return Ok(true);
+                }
+            }
+            return Ok(false);
+        }
+
+        let needle = utils::extract_dna_needle(prefix)?;
+        Ok(matches(needle))
+    }
+
+    #[pyo3(signature = (suffix, start=None, end=None))]
+    fn endswith(
+        &self,
+        suffix: &Bound<'_, PyAny>,
+        start: Option<isize>,
+        end: Option<isize>,
+    ) -> PyResult<bool> {
+        let (s, e) = utils::normalize_range(self.as_bytes().len(), start, end);
+        let bytes = self.as_bytes();
+        let window: &[u8] = if s <= e { &bytes[s..e] } else { &bytes[0..0] };
+
+        let matches = |needle: PyDnaNeedle<'_>| -> bool {
+            match needle {
+                PyDnaNeedle::Dna(other) => window.ends_with(other.as_bytes()),
+                PyDnaNeedle::Bytes(seq) => window.ends_with(seq.as_slice()),
+                PyDnaNeedle::Byte(b) => window.last().map(|v| *v == b).unwrap_or(false),
+            }
+        };
+
+        if let Ok(tuple) = suffix.downcast::<PyTuple>() {
+            for item in tuple.iter() {
+                let needle = utils::extract_dna_needle(&item)?;
+                if matches(needle) {
+                    return Ok(true);
+                }
+            }
+            return Ok(false);
+        }
+
+        let needle = utils::extract_dna_needle(suffix)?;
+        Ok(matches(needle))
+    }
+
+    #[pyo3(signature = (sep=None, maxsplit=-1))]
+    fn split<'py>(
+        &self,
+        py: Python<'py>,
+        sep: Option<&Bound<'py, PyAny>>,
+        maxsplit: isize,
+    ) -> PyResult<Vec<Py<DNA>>> {
+        let bytes = self.as_bytes();
+        let parts = match sep {
+            None => split_on_whitespace(bytes, maxsplit),
+            Some(obj) => split_on_sep(bytes, obj, maxsplit)?,
+        };
+
+        dna_list_from_parts(py, parts)
+    }
+
+    #[pyo3(signature = (sep=None, maxsplit=-1))]
+    fn rsplit<'py>(
+        &self,
+        py: Python<'py>,
+        sep: Option<&Bound<'py, PyAny>>,
+        maxsplit: isize,
+    ) -> PyResult<Vec<Py<DNA>>> {
+        let bytes = self.as_bytes();
+        let parts = match sep {
+            None => rsplit_on_whitespace(bytes, maxsplit),
+            Some(obj) => rsplit_on_sep(bytes, obj, maxsplit)?,
+        };
+
+        dna_list_from_parts(py, parts)
+    }
+
+    #[pyo3(signature = (chars=None))]
+    fn strip(&self, chars: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
+        let bytes = self.as_bytes();
+        let (start, end) = trim_range(bytes, chars, true, true)?;
+        let inner = DnaSeq::new(bytes[start..end].to_vec())
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        Ok(Self { inner })
+    }
+
+    #[pyo3(signature = (chars=None))]
+    fn lstrip(&self, chars: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
+        let bytes = self.as_bytes();
+        let (start, end) = trim_range(bytes, chars, true, false)?;
+        let inner = DnaSeq::new(bytes[start..end].to_vec())
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        Ok(Self { inner })
+    }
+
+    #[pyo3(signature = (chars=None))]
+    fn rstrip(&self, chars: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
+        let bytes = self.as_bytes();
+        let (start, end) = trim_range(bytes, chars, false, true)?;
+        let inner = DnaSeq::new(bytes[start..end].to_vec())
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        Ok(Self { inner })
+    }
+
+    fn upper(&self) -> PyResult<Self> {
+        let out: Vec<u8> = self
+            .as_bytes()
+            .iter()
+            .map(|b| b.to_ascii_uppercase())
+            .collect();
+        let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        Ok(Self { inner })
+    }
+
+    fn lower(&self) -> PyResult<Self> {
+        let out: Vec<u8> = self
+            .as_bytes()
+            .iter()
+            .map(|b| b.to_ascii_lowercase())
+            .collect();
+        let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        Ok(Self { inner })
+    }
+
     #[pyo3(signature = (sub, start=None, end=None))]
     fn find(
         &self,
@@ -308,4 +453,358 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DNA>()?;
     m.add_function(wrap_pyfunction!(complement, m)?)?;
     Ok(())
+}
+
+fn dna_list_from_parts(py: Python<'_>, parts: Vec<Vec<u8>>) -> PyResult<Vec<Py<DNA>>> {
+    let mut out = Vec::with_capacity(parts.len());
+    for part in parts {
+        let inner = DnaSeq::new(part).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        out.push(Py::new(py, DNA { inner })?);
+    }
+    Ok(out)
+}
+
+fn split_on_whitespace(hay: &[u8], maxsplit: isize) -> Vec<Vec<u8>> {
+    let len = hay.len();
+    let maxsplit = if maxsplit < 0 {
+        usize::MAX
+    } else {
+        maxsplit as usize
+    };
+
+    let mut out = Vec::new();
+    let mut i = 0usize;
+
+    if maxsplit == 0 {
+        while i < len && hay[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        if i < len {
+            out.push(hay[i..].to_vec());
+        }
+        return out;
+    }
+
+    let mut splits = 0usize;
+    while i < len {
+        while i < len && hay[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        if i >= len {
+            break;
+        }
+
+        if splits == maxsplit {
+            out.push(hay[i..].to_vec());
+            return out;
+        }
+
+        let start = i;
+        while i < len && !hay[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        out.push(hay[start..i].to_vec());
+        splits += 1;
+    }
+
+    out
+}
+
+fn rsplit_on_whitespace(hay: &[u8], maxsplit: isize) -> Vec<Vec<u8>> {
+    let len = hay.len();
+    let maxsplit = if maxsplit < 0 {
+        usize::MAX
+    } else {
+        maxsplit as usize
+    };
+
+    let mut out = Vec::new();
+    let mut i = len;
+
+    if maxsplit == 0 {
+        while i > 0 && hay[i - 1].is_ascii_whitespace() {
+            i -= 1;
+        }
+        if i == 0 {
+            return out;
+        }
+        let mut start = 0usize;
+        while start < i && hay[start].is_ascii_whitespace() {
+            start += 1;
+        }
+        out.push(hay[start..i].to_vec());
+        return out;
+    }
+
+    let mut splits = 0usize;
+    while i > 0 {
+        while i > 0 && hay[i - 1].is_ascii_whitespace() {
+            i -= 1;
+        }
+        if i == 0 {
+            break;
+        }
+
+        if splits == maxsplit {
+            let mut start = 0usize;
+            while start < i && hay[start].is_ascii_whitespace() {
+                start += 1;
+            }
+            out.push(hay[start..i].to_vec());
+            out.reverse();
+            return out;
+        }
+
+        let end = i;
+        while i > 0 && !hay[i - 1].is_ascii_whitespace() {
+            i -= 1;
+        }
+        out.push(hay[i..end].to_vec());
+        splits += 1;
+    }
+
+    out.reverse();
+    out
+}
+
+fn split_on_sep(hay: &[u8], sep: &Bound<'_, PyAny>, maxsplit: isize) -> PyResult<Vec<Vec<u8>>> {
+    let needle = utils::extract_dna_needle(sep)?;
+
+    match needle {
+        PyDnaNeedle::Byte(b) => Ok(split_on_byte(hay, b, maxsplit)),
+        PyDnaNeedle::Bytes(bytes) => split_on_bytes(hay, bytes.as_slice(), maxsplit),
+        PyDnaNeedle::Dna(other) => split_on_bytes(hay, other.as_bytes(), maxsplit),
+    }
+}
+
+fn rsplit_on_sep(hay: &[u8], sep: &Bound<'_, PyAny>, maxsplit: isize) -> PyResult<Vec<Vec<u8>>> {
+    let needle = utils::extract_dna_needle(sep)?;
+
+    match needle {
+        PyDnaNeedle::Byte(b) => Ok(rsplit_on_byte(hay, b, maxsplit)),
+        PyDnaNeedle::Bytes(bytes) => rsplit_on_bytes(hay, bytes.as_slice(), maxsplit),
+        PyDnaNeedle::Dna(other) => rsplit_on_bytes(hay, other.as_bytes(), maxsplit),
+    }
+}
+
+fn split_on_bytes(hay: &[u8], sep: &[u8], maxsplit: isize) -> PyResult<Vec<Vec<u8>>> {
+    if sep.is_empty() {
+        return Err(PyValueError::new_err("empty separator"));
+    }
+
+    if sep.len() == 1 {
+        return Ok(split_on_byte(hay, sep[0], maxsplit));
+    }
+
+    Ok(split_on_bytes_multi(hay, sep, maxsplit))
+}
+
+fn rsplit_on_bytes(hay: &[u8], sep: &[u8], maxsplit: isize) -> PyResult<Vec<Vec<u8>>> {
+    if sep.is_empty() {
+        return Err(PyValueError::new_err("empty separator"));
+    }
+
+    if sep.len() == 1 {
+        return Ok(rsplit_on_byte(hay, sep[0], maxsplit));
+    }
+
+    Ok(rsplit_on_bytes_multi(hay, sep, maxsplit))
+}
+
+fn split_on_byte(hay: &[u8], b: u8, maxsplit: isize) -> Vec<Vec<u8>> {
+    let maxsplit = if maxsplit < 0 {
+        usize::MAX
+    } else {
+        maxsplit as usize
+    };
+
+    if maxsplit == 0 {
+        return vec![hay.to_vec()];
+    }
+
+    let mut out = Vec::new();
+    let mut start = 0usize;
+    let mut splits = 0usize;
+
+    for (i, &c) in hay.iter().enumerate() {
+        if c == b && splits < maxsplit {
+            out.push(hay[start..i].to_vec());
+            start = i + 1;
+            splits += 1;
+        }
+    }
+
+    out.push(hay[start..].to_vec());
+    out
+}
+
+fn rsplit_on_byte(hay: &[u8], b: u8, maxsplit: isize) -> Vec<Vec<u8>> {
+    let maxsplit = if maxsplit < 0 {
+        usize::MAX
+    } else {
+        maxsplit as usize
+    };
+
+    if maxsplit == 0 {
+        return vec![hay.to_vec()];
+    }
+
+    let mut out = Vec::new();
+    let mut end = hay.len();
+    let mut splits = 0usize;
+
+    let mut i = hay.len();
+    while i > 0 {
+        i -= 1;
+        if hay[i] == b && splits < maxsplit {
+            out.push(hay[i + 1..end].to_vec());
+            end = i;
+            splits += 1;
+        }
+    }
+
+    out.push(hay[..end].to_vec());
+    out.reverse();
+    out
+}
+
+fn split_on_bytes_multi(hay: &[u8], sep: &[u8], maxsplit: isize) -> Vec<Vec<u8>> {
+    let maxsplit = if maxsplit < 0 {
+        usize::MAX
+    } else {
+        maxsplit as usize
+    };
+
+    if maxsplit == 0 {
+        return vec![hay.to_vec()];
+    }
+
+    let mut out = Vec::new();
+    let mut start = 0usize;
+    let mut splits = 0usize;
+
+    while splits < maxsplit {
+        let pos = find_subslice(hay, sep, start);
+        match pos {
+            Some(i) => {
+                out.push(hay[start..i].to_vec());
+                start = i + sep.len();
+                splits += 1;
+            }
+            None => break,
+        }
+    }
+
+    out.push(hay[start..].to_vec());
+    out
+}
+
+fn rsplit_on_bytes_multi(hay: &[u8], sep: &[u8], maxsplit: isize) -> Vec<Vec<u8>> {
+    let maxsplit = if maxsplit < 0 {
+        usize::MAX
+    } else {
+        maxsplit as usize
+    };
+
+    if maxsplit == 0 {
+        return vec![hay.to_vec()];
+    }
+
+    let mut out = Vec::new();
+    let mut end = hay.len();
+    let mut splits = 0usize;
+
+    while splits < maxsplit {
+        let pos = rfind_subslice(hay, sep, end);
+        match pos {
+            Some(i) => {
+                out.push(hay[i + sep.len()..end].to_vec());
+                end = i;
+                splits += 1;
+            }
+            None => break,
+        }
+    }
+
+    out.push(hay[..end].to_vec());
+    out.reverse();
+    out
+}
+
+fn find_subslice(hay: &[u8], needle: &[u8], start: usize) -> Option<usize> {
+    if needle.len() > hay.len().saturating_sub(start) {
+        return None;
+    }
+    hay[start..]
+        .windows(needle.len())
+        .position(|w| w == needle)
+        .map(|i| start + i)
+}
+
+fn rfind_subslice(hay: &[u8], needle: &[u8], end: usize) -> Option<usize> {
+    if needle.len() > end {
+        return None;
+    }
+    hay[..end].windows(needle.len()).rposition(|w| w == needle)
+}
+
+fn trim_range(
+    hay: &[u8],
+    chars: Option<&Bound<'_, PyAny>>,
+    left: bool,
+    right: bool,
+) -> PyResult<(usize, usize)> {
+    let len = hay.len();
+    let mut start = 0usize;
+    let mut end = len;
+
+    let mut mask = [false; 256];
+    let mut use_mask = false;
+    let mut single_byte: Option<u8> = None;
+
+    if let Some(obj) = chars {
+        let needle = utils::extract_dna_needle(obj)?;
+        let bytes = match needle {
+            PyDnaNeedle::Dna(other) => other.as_bytes().to_vec(),
+            PyDnaNeedle::Bytes(bytes) => bytes,
+            PyDnaNeedle::Byte(b) => vec![b],
+        };
+
+        if bytes.is_empty() {
+            return Ok((0, len));
+        }
+
+        if bytes.len() == 1 {
+            single_byte = Some(bytes[0]);
+        } else {
+            use_mask = true;
+            for &b in bytes.iter() {
+                mask[b as usize] = true;
+            }
+        }
+    }
+
+    let is_trim = |b: u8, single_byte: Option<u8>, use_mask: bool, mask: &[bool; 256]| -> bool {
+        if let Some(sb) = single_byte {
+            return b == sb;
+        }
+        if use_mask {
+            return mask[b as usize];
+        }
+        b.is_ascii_whitespace()
+    };
+
+    if left {
+        while start < end && is_trim(hay[start], single_byte, use_mask, &mask) {
+            start += 1;
+        }
+    }
+
+    if right {
+        while end > start && is_trim(hay[end - 1], single_byte, use_mask, &mask) {
+            end -= 1;
+        }
+    }
+
+    Ok((start, end))
 }

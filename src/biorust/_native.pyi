@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import overload
 
 class DNA:
-    def __init__(self, seq: str | bytes | bytearray | memoryview | DNA) -> None: ...
+    def __init__(self, seq: str | bytes | bytearray | memoryview) -> None: ...
     def reverse_complement(self) -> DNA: ...
     def to_bytes(self) -> bytes: ...
     def __len__(self) -> int: ...
@@ -32,36 +32,84 @@ class DNA:
     @overload
     def __getitem__(self, other: slice) -> "DNA": ...
     def __getitem__(self, other): ...
-    def count(self, other: str | bytes | bytearray | memoryview | DNA) -> int: ...
+    def count(self, other: str | bytes | bytearray | memoryview | int | DNA) -> int: ...
     def count_overlap(
         self, sub: DNA | str | bytes | bytearray | memoryview | int
     ) -> int: ...
     def __contains__(
-        self, other: str | bytes | bytearray | memoryview | DNA
+        self, other: str | bytes | bytearray | memoryview | int | DNA
     ) -> bool: ...
     def find(
         self,
         sub: str | bytes | bytearray | memoryview | int | "DNA",
-        start: int = ...,
+        start: int | None = ...,
         end: int | None = ...,
     ) -> int: ...
     def index(
         self,
         sub: str | bytes | bytearray | memoryview | int | "DNA",
-        start: int = ...,
+        start: int | None = ...,
         end: int | None = ...,
     ) -> int: ...
     def rfind(
         self,
         sub: str | bytes | bytearray | memoryview | int | "DNA",
-        start: int = ...,
+        start: int | None = ...,
         end: int | None = ...,
     ) -> int: ...
     def rindex(
         self,
         sub: str | bytes | bytearray | memoryview | int | "DNA",
-        start: int = ...,
+        start: int | None = ...,
         end: int | None = ...,
     ) -> int: ...
+    def split(
+        self,
+        sep: str | bytes | bytearray | memoryview | int | "DNA" | None = ...,
+        maxsplit: int = ...,
+    ) -> list["DNA"]: ...
+    def rsplit(
+        self,
+        sep: str | bytes | bytearray | memoryview | int | "DNA" | None = ...,
+        maxsplit: int = ...,
+    ) -> list["DNA"]: ...
+    def strip(
+        self,
+        chars: str | bytes | bytearray | memoryview | int | "DNA" | None = ...,
+    ) -> "DNA": ...
+    def lstrip(
+        self,
+        chars: str | bytes | bytearray | memoryview | int | "DNA" | None = ...,
+    ) -> "DNA": ...
+    def rstrip(
+        self,
+        chars: str | bytes | bytearray | memoryview | int | "DNA" | None = ...,
+    ) -> "DNA": ...
+    def upper(self) -> "DNA": ...
+    def lower(self) -> "DNA": ...
+    def startswith(
+        self,
+        sub: str
+        | bytes
+        | bytearray
+        | memoryview
+        | int
+        | "DNA"
+        | tuple[str | bytes | bytearray | memoryview | int | "DNA", ...],
+        start: int | None = ...,
+        end: int | None = ...,
+    ) -> bool: ...
+    def endswith(
+        self,
+        sub: str
+        | bytes
+        | bytearray
+        | memoryview
+        | int
+        | "DNA"
+        | tuple[str | bytes | bytearray | memoryview | int | "DNA", ...],
+        start: int | None = ...,
+        end: int | None = ...,
+    ) -> bool: ...
 
 def complement(a: int) -> int: ...

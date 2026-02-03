@@ -25,7 +25,6 @@
 - `maturin build`: Build distributable wheels locally.
 - `pytest` or `python -m pytest`: Run Python tests in `tests/`.
 
-
 ## Coding Style & Naming Conventions
 
 - Rust: 4-space indentation; `rustfmt` is expected. Use `snake_case` for modules/functions, `PascalCase` for types, and keep public APIs in `biorust-core/src/lib.rs` organized by module.

@@ -68,6 +68,57 @@ def test_contains():
     assert "" in s
 
 
+def test_startswith_endswith():
+    s = DNA("ACGTACGT")
+
+    assert s.startswith("AC")
+    assert s.startswith(DNA("AC"))
+    assert s.startswith("CG", 1)
+    assert s.startswith("AC", 0, 2)
+    assert s.startswith(("TT", "AC"))
+    assert s.startswith(65)  # "A"
+    assert s.startswith("") is True
+    assert s.startswith("AC", 1) is False
+
+    assert s.endswith("GT")
+    assert s.endswith(DNA("GT"))
+    assert s.endswith("GT", 0, 4)
+    assert s.endswith(("TT", "GT"))
+    assert s.endswith(84)  # "T"
+    assert s.endswith("") is True
+    assert s.endswith("AC", 0, 4) is False
+
+
+def test_split_rsplit():
+    s = DNA("ACGTACGT")
+
+    assert [str(p) for p in s.split("AC")] == ["", "GT", "GT"]
+    assert [str(p) for p in s.split(DNA("GT"))] == ["AC", "AC", ""]
+    assert [str(p) for p in s.split("A", 1)] == ["", "CGTACGT"]
+    assert [str(p) for p in s.split(65, 1)] == ["", "CGTACGT"]
+    assert [str(p) for p in s.split("A", 0)] == ["ACGTACGT"]
+    assert [str(p) for p in s.split()] == ["ACGTACGT"]
+    assert [str(p) for p in DNA("").split()] == []
+
+    assert [str(p) for p in s.rsplit("AC", 1)] == ["ACGT", "GT"]
+    assert [str(p) for p in s.rsplit("GT", 1)] == ["ACGTAC", ""]
+    assert [str(p) for p in s.rsplit("A", 0)] == ["ACGTACGT"]
+
+
+def test_strip_and_case():
+    s = DNA("AAACGTTT")
+
+    assert str(s.strip("AT")) == "CG"
+    assert str(s.lstrip("A")) == "CGTTT"
+    assert str(s.lstrip(65)) == "CGTTT"
+    assert str(s.rstrip("T")) == "AAACG"
+    assert str(s.strip()) == "AAACGTTT"
+
+    mixed = DNA("aCgT")
+    assert str(mixed.upper()) == "ACGT"
+    assert str(mixed.lower()) == "acgt"
+
+
 def test_find():
     s = DNA("ACGTACGT")
 

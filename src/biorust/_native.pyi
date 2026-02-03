@@ -36,5 +36,32 @@ class DNA:
     def count_overlap(
         self, sub: DNA | str | bytes | bytearray | memoryview | int
     ) -> int: ...
+    def __contains__(
+        self, other: str | bytes | bytearray | memoryview | DNA
+    ) -> bool: ...
+    def find(
+        self,
+        sub: str | bytes | bytearray | memoryview | int | "DNA",
+        start: int = ...,
+        end: int | None = ...,
+    ) -> int: ...
+    def index(
+        self,
+        sub: str | bytes | bytearray | memoryview | int | "DNA",
+        start: int = ...,
+        end: int | None = ...,
+    ) -> int: ...
+    def rfind(
+        self,
+        sub: str | bytes | bytearray | memoryview | int | "DNA",
+        start: int = ...,
+        end: int | None = ...,
+    ) -> int: ...
+    def rindex(
+        self,
+        sub: str | bytes | bytearray | memoryview | int | "DNA",
+        start: int = ...,
+        end: int | None = ...,
+    ) -> int: ...
 
 def complement(a: int) -> int: ...

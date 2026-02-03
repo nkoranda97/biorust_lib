@@ -197,6 +197,106 @@ impl DNA {
 
         res.map_err(|e| PyValueError::new_err(e.to_string()))
     }
+
+    fn __contains__(&self, sub: &Bound<'_, PyAny>) -> PyResult<bool> {
+        let needle = utils::extract_dna_needle(sub)?;
+
+        let res = match needle {
+            PyDnaNeedle::Dna(other) => self.inner.contains(&other.inner),
+            PyDnaNeedle::Bytes(bytes) => self.inner.contains(bytes.as_slice()),
+            PyDnaNeedle::Byte(b) => self.inner.contains(b),
+        };
+
+        res.map_err(|e| PyValueError::new_err(e.to_string()))
+    }
+
+    #[pyo3(signature = (sub, start=None, end=None))]
+    fn find(
+        &self,
+        sub: &Bound<'_, PyAny>,
+        start: Option<isize>,
+        end: Option<isize>,
+    ) -> PyResult<isize> {
+        let (s, e) = utils::normalize_range(self.as_bytes().len(), start, end);
+        let needle = utils::extract_dna_needle(sub)?;
+
+        let res = match needle {
+            PyDnaNeedle::Dna(other) => self.inner.find(&other.inner, s, e),
+            PyDnaNeedle::Bytes(bytes) => self.inner.find(bytes.as_slice(), s, e),
+            PyDnaNeedle::Byte(b) => self.inner.find(b, s, e),
+        };
+
+        match res.map_err(|err| PyValueError::new_err(err.to_string()))? {
+            Some(pos) => Ok(pos as isize),
+            None => Ok(-1),
+        }
+    }
+
+    #[pyo3(signature = (sub, start=None, end=None))]
+    fn index(
+        &self,
+        sub: &Bound<'_, PyAny>,
+        start: Option<isize>,
+        end: Option<isize>,
+    ) -> PyResult<isize> {
+        let (s, e) = utils::normalize_range(self.as_bytes().len(), start, end);
+        let needle = utils::extract_dna_needle(sub)?;
+
+        let res = match needle {
+            PyDnaNeedle::Dna(other) => self.inner.find(&other.inner, s, e),
+            PyDnaNeedle::Bytes(bytes) => self.inner.find(bytes.as_slice(), s, e),
+            PyDnaNeedle::Byte(b) => self.inner.find(b, s, e),
+        };
+
+        match res.map_err(|err| PyValueError::new_err(err.to_string()))? {
+            Some(pos) => Ok(pos as isize),
+            None => Err(PyValueError::new_err("subsection not found")),
+        }
+    }
+
+    #[pyo3(signature = (sub, start=None, end=None))]
+    fn rfind(
+        &self,
+        sub: &Bound<'_, PyAny>,
+        start: Option<isize>,
+        end: Option<isize>,
+    ) -> PyResult<isize> {
+        let (s, e) = utils::normalize_range(self.as_bytes().len(), start, end);
+        let needle = utils::extract_dna_needle(sub)?;
+
+        let res = match needle {
+            PyDnaNeedle::Dna(other) => self.inner.rfind(&other.inner, s, e),
+            PyDnaNeedle::Bytes(bytes) => self.inner.rfind(bytes.as_slice(), s, e),
+            PyDnaNeedle::Byte(b) => self.inner.rfind(b, s, e),
+        };
+
+        match res.map_err(|err| PyValueError::new_err(err.to_string()))? {
+            Some(pos) => Ok(pos as isize),
+            None => Ok(-1),
+        }
+    }
+
+    #[pyo3(signature = (sub, start=None, end=None))]
+    fn rindex(
+        &self,
+        sub: &Bound<'_, PyAny>,
+        start: Option<isize>,
+        end: Option<isize>,
+    ) -> PyResult<isize> {
+        let (s, e) = utils::normalize_range(self.as_bytes().len(), start, end);
+        let needle = utils::extract_dna_needle(sub)?;
+
+        let res = match needle {
+            PyDnaNeedle::Dna(other) => self.inner.rfind(&other.inner, s, e),
+            PyDnaNeedle::Bytes(bytes) => self.inner.rfind(bytes.as_slice(), s, e),
+            PyDnaNeedle::Byte(b) => self.inner.rfind(b, s, e),
+        };
+
+        match res.map_err(|err| PyValueError::new_err(err.to_string()))? {
+            Some(pos) => Ok(pos as isize),
+            None => Err(PyValueError::new_err("subsection not found")),
+        }
+    }
 }
 
 #[pyfunction]

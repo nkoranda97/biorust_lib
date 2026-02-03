@@ -56,3 +56,62 @@ def test_count_and_count_overlap():
 def test_invalid_input_rejected():
     with pytest.raises(Exception):
         DNA("ATC#")
+
+
+def test_contains():
+    s = DNA("ACGTACGT")
+
+    assert "A" in s
+    assert "CG" in s
+    assert DNA("AC") in s
+    assert "TTT" not in s
+    assert "" in s
+
+
+def test_find():
+    s = DNA("ACGTACGT")
+
+    assert s.find("A") == 0
+    assert s.find("CG") == 1
+    assert s.find("TTT") == -1
+
+    assert s.find("") == 0
+    assert s.find("", 3) == 3
+
+    assert s.find("AC", 1) == 4
+    assert s.find("AC", 5) == -1
+
+
+def test_rfind():
+    s = DNA("ACGTACGT")
+
+    assert s.rfind("A") == 4
+    assert s.rfind("CG") == 5
+    assert s.rfind("TTT") == -1
+
+    assert s.rfind("") == 8
+    assert s.rfind("", 3) == 8
+
+    assert s.rfind("AC", 1) == 4
+    assert s.rfind("AC", 5) == -1
+    assert s.rfind("AC", 0, 4) == 0
+
+
+def test_index_and_rindex():
+    s = DNA("ACGTACGT")
+
+    assert s.index("A") == 0
+    assert s.index("CG") == 1
+    assert s.index("") == 0
+    assert s.index("", 3) == 3
+
+    with pytest.raises(ValueError):
+        s.index("TTT")
+
+    assert s.rindex("A") == 4
+    assert s.rindex("CG") == 5
+    assert s.rindex("") == 8
+    assert s.rindex("", 3) == 8
+
+    with pytest.raises(ValueError):
+        s.rindex("TTT")

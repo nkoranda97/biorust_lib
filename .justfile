@@ -1,3 +1,6 @@
+dev:
+    uv run maturin develop
+
 check:
     cargo fmt --all
     uvx ruff format .

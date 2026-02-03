@@ -78,6 +78,109 @@ impl DnaSeq {
             }
         }
     }
+    pub fn contains<'a, N>(&'a self, sub: N) -> BioResult<bool>
+    where
+        N: IntoDnaNeedle<'a>,
+    {
+        let hay = self.as_bytes();
+        let needle = sub.into_needle()?;
+
+        match needle {
+            Needle::Byte(b) => Ok(memchr::memchr(b, hay).is_some()),
+
+            Needle::Bytes(pat) => {
+                if pat.is_empty() {
+                    return Ok(true);
+                }
+
+                Ok(memmem::find(hay, pat).is_some())
+            }
+        }
+    }
+
+    pub fn find<'a, N>(&'a self, sub: N, start: usize, end: usize) -> BioResult<Option<usize>>
+    where
+        N: IntoDnaNeedle<'a>,
+    {
+        let hay = self.as_bytes();
+
+        let len = hay.len();
+        let start = start.min(len);
+        let end = end.min(len);
+        if start > end {
+            return Ok(None);
+        }
+
+        let needle = sub.into_needle()?;
+
+        match needle {
+            Needle::Byte(b) => {
+                let window = &hay[start..end];
+                Ok(memchr::memchr(b, window).map(|i| start + i))
+            }
+            Needle::Bytes(pat) => {
+                if pat.is_empty() {
+                    return Ok(Some(start));
+                }
+                if pat.len() > end - start {
+                    return Ok(None);
+                }
+
+                let window = &hay[start..end];
+                Ok(memmem::find(window, pat).map(|i| start + i))
+            }
+        }
+    }
+
+    pub fn rfind<'a, N>(&'a self, sub: N, start: usize, end: usize) -> BioResult<Option<usize>>
+    where
+        N: IntoDnaNeedle<'a>,
+    {
+        let hay = self.as_bytes();
+
+        let len = hay.len();
+        let start = start.min(len);
+        let end = end.min(len);
+        if start > end {
+            return Ok(None);
+        }
+
+        let needle = sub.into_needle()?;
+
+        match needle {
+            Needle::Byte(b) => {
+                let window = &hay[start..end];
+                Ok(memchr::memrchr(b, window).map(|i| start + i))
+            }
+            Needle::Bytes(pat) => {
+                if pat.is_empty() {
+                    return Ok(Some(end));
+                }
+                if pat.len() > end - start {
+                    return Ok(None);
+                }
+
+                let window = &hay[start..end];
+                let finder = memmem::Finder::new(pat);
+
+                let mut pos = 0usize;
+                let mut last = None;
+
+                while pos <= window.len().saturating_sub(pat.len()) {
+                    match finder.find(&window[pos..]) {
+                        Some(i) => {
+                            let found = pos + i;
+                            last = Some(found);
+                            pos = found + 1;
+                        }
+                        None => break,
+                    }
+                }
+
+                Ok(last.map(|i| start + i))
+            }
+        }
+    }
 }
 
 /// Internal “needle” representation.
@@ -223,5 +326,50 @@ mod tests {
         let s = DnaSeq::new(b"ACGTACGT".to_vec()).unwrap();
         let sub = DnaSeq::new(b"AC".to_vec()).unwrap();
         assert_eq!(s.count(&sub).unwrap(), 2);
+    }
+
+    #[test]
+    fn contains_tests() {
+        let s = DnaSeq::new(b"ACGTACGT".to_vec()).unwrap();
+
+        assert!(s.contains(b"A").unwrap());
+        assert!(s.contains(b"CG").unwrap());
+        assert!(!s.contains(b"TTT").unwrap());
+        assert!(s.contains(b"").unwrap());
+    }
+
+    #[test]
+    fn find_basic() {
+        let s = DnaSeq::new(b"ACGTACGT".to_vec()).unwrap();
+
+        assert_eq!(s.find(b"A", 0, 8).unwrap(), Some(0));
+        assert_eq!(s.find(b"CG", 0, 8).unwrap(), Some(1));
+        assert_eq!(s.find(b"TTT", 0, 8).unwrap(), None);
+
+        // empty needle => start
+        assert_eq!(s.find(b"", 0, 8).unwrap(), Some(0));
+        assert_eq!(s.find(b"", 3, 8).unwrap(), Some(3));
+
+        // range-limited
+        assert_eq!(s.find(b"AC", 1, 8).unwrap(), Some(4));
+        assert_eq!(s.find(b"AC", 5, 8).unwrap(), None);
+    }
+
+    #[test]
+    fn rfind_basic() {
+        let s = DnaSeq::new(b"ACGTACGT".to_vec()).unwrap();
+
+        assert_eq!(s.rfind(b"A", 0, 8).unwrap(), Some(4));
+        assert_eq!(s.rfind(b"CG", 0, 8).unwrap(), Some(5));
+        assert_eq!(s.rfind(b"TTT", 0, 8).unwrap(), None);
+
+        // empty needle => end
+        assert_eq!(s.rfind(b"", 0, 8).unwrap(), Some(8));
+        assert_eq!(s.rfind(b"", 3, 8).unwrap(), Some(8));
+
+        // range-limited
+        assert_eq!(s.rfind(b"AC", 1, 8).unwrap(), Some(4));
+        assert_eq!(s.rfind(b"AC", 5, 8).unwrap(), None);
+        assert_eq!(s.rfind(b"AC", 0, 4).unwrap(), Some(0));
     }
 }

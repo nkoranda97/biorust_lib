@@ -51,3 +51,24 @@ pub fn extract_dna_needle<'py>(obj: &'py Bound<'py, PyAny>) -> PyResult<PyDnaNee
         "sub must be DNA, str, bytes-like, or int (0..=255)",
     ))
 }
+
+pub fn normalize_range(len: usize, start: Option<isize>, end: Option<isize>) -> (usize, usize) {
+    let n = len as isize;
+
+    let mut s = start.unwrap_or(0);
+    let mut e = end.unwrap_or(n);
+
+    // Handle negatives like Python
+    if s < 0 {
+        s += n;
+    }
+    if e < 0 {
+        e += n;
+    }
+
+    // Clamp into [0, len]
+    s = s.clamp(0, n);
+    e = e.clamp(0, n);
+
+    (s as usize, e as usize)
+}

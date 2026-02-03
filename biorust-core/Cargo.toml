@@ -12,6 +12,7 @@ path = "src/lib.rs"
 thiserror = "1.0"
 bit-set = "0.8"
 vector-map = "1.0.2"
+memchr = "2.7.6"
 
 [dev-dependencies]
 proptest = "1.4"

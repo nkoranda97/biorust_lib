@@ -19,3 +19,7 @@ seq3 += seq2
 print(2 * seq3)
 print(seq1)
 print(seq2)
+
+seq1 = DNA("AAAAAAA")
+print (seq1.count("AAA"))
+print (seq1.count_overlap("AAA"))

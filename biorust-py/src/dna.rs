@@ -3,7 +3,7 @@ use pyo3::exceptions::{PyIndexError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule, PySlice, PyString};
 
-use crate::utils;
+use crate::utils::{self, PyDnaNeedle};
 use biorust_core::seq::dna::DnaSeq;
 
 #[pyclass(frozen)]
@@ -169,6 +169,30 @@ impl DNA {
 
     fn __rmul__<'py>(&self, num: &Bound<'py, PyAny>) -> PyResult<Self> {
         self.__mul__(num)
+    }
+
+    fn count<'py>(&self, sub: &'py Bound<'py, PyAny>) -> PyResult<usize> {
+        let needle = utils::extract_dna_needle(sub)?;
+
+        let res = match needle {
+            PyDnaNeedle::Dna(other) => self.inner.count(&other.inner),
+            PyDnaNeedle::Bytes(bytes) => self.inner.count(bytes.as_slice()),
+            PyDnaNeedle::Byte(b) => self.inner.count(b),
+        };
+
+        res.map_err(|e| PyValueError::new_err(e.to_string()))
+    }
+
+    fn count_overlap<'py>(&self, sub: &'py Bound<'py, PyAny>) -> PyResult<usize> {
+        let needle = utils::extract_dna_needle(sub)?;
+
+        let res = match needle {
+            PyDnaNeedle::Dna(other) => self.inner.count_overlap(&other.inner),
+            PyDnaNeedle::Bytes(bytes) => self.inner.count_overlap(bytes.as_slice()),
+            PyDnaNeedle::Byte(b) => self.inner.count_overlap(b),
+        };
+
+        res.map_err(|e| PyValueError::new_err(e.to_string()))
     }
 }
 

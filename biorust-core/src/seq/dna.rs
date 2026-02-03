@@ -26,6 +26,14 @@ impl DnaSeq {
         Self { bytes: out }
     }
 
+    pub fn complement(&self) -> Self {
+        let mut out = Vec::with_capacity(self.bytes.len());
+        for &base in self.as_bytes() {
+            out.push(dna::complement(base));
+        }
+        Self { bytes: out }
+    }
+
     pub fn count<'a, N>(&'a self, sub: N) -> BioResult<usize>
     where
         N: IntoDnaNeedle<'a>,

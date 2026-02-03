@@ -1,6 +1,6 @@
 import pytest
 
-from biorust import DNA
+from biorust import DNA, complement
 
 
 def test_construction_and_basic_ops():
@@ -166,3 +166,10 @@ def test_index_and_rindex():
 
     with pytest.raises(ValueError):
         s.rindex("TTT")
+
+
+def test_complement():
+    s = DNA("ACGT")
+    assert str(s.complement()) == "TGCA"
+    assert str(complement(s)) == "TGCA"
+    assert str(complement("ACGT")) == "TGCA"

@@ -35,6 +35,12 @@ impl DNA {
         }
     }
 
+    fn complement(&self) -> Self {
+        Self {
+            inner: self.inner.complement(),
+        }
+    }
+
     #[inline]
     pub(crate) fn as_bytes(&self) -> &[u8] {
         self.inner.as_bytes()
@@ -445,8 +451,18 @@ impl DNA {
 }
 
 #[pyfunction]
-fn complement(a: u8) -> u8 {
-    biorust_core::alphabets::dna::complement(a)
+fn complement(seq: &Bound<'_, PyAny>) -> PyResult<DNA> {
+    if let Ok(dna) = seq.extract::<PyRef<'_, DNA>>() {
+        return Ok(DNA {
+            inner: dna.inner.complement(),
+        });
+    }
+
+    let bytes = utils::extract_bytes(seq)?;
+    let inner = DnaSeq::new(bytes).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok(DNA {
+        inner: inner.complement(),
+    })
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -2,12 +2,17 @@ use crate::alphabets::dna;
 use crate::error::{BioError, BioResult};
 use crate::seq::bytes::{self, IntoNeedle, Needle};
 use crate::seq::protein::ProteinSeq;
+use crate::seq::traits::SeqBytes;
 
 use std::sync::LazyLock;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DnaSeq {
     bytes: Vec<u8>,
+}
+
+pub trait ReverseComplement: Sized {
+    fn reverse_complement(&self) -> Self;
 }
 
 impl DnaSeq {
@@ -102,6 +107,22 @@ impl DnaSeq {
     {
         let needle = sub.into_needle()?;
         Ok(bytes::rfind(self.as_bytes(), needle, start, end))
+    }
+}
+
+impl SeqBytes for DnaSeq {
+    fn as_bytes(&self) -> &[u8] {
+        DnaSeq::as_bytes(self)
+    }
+
+    fn from_bytes(bytes: Vec<u8>) -> BioResult<Self> {
+        DnaSeq::new(bytes)
+    }
+}
+
+impl ReverseComplement for DnaSeq {
+    fn reverse_complement(&self) -> Self {
+        DnaSeq::reverse_complement(self)
     }
 }
 

@@ -1,4 +1,4 @@
-from biorust import DNA
+from biorust import DNA, complement, DNABatch
 
 seq1 = DNA("ATCG")
 seq2 = DNA(seq="ATCG")
@@ -23,3 +23,14 @@ print(seq2)
 seq1 = DNA("AAAAAAA")
 print(seq1.count("AAA"))
 print(seq1.count_overlap("AAA"))
+seq1 = DNA("ATCTGCATTACG")
+print(complement(seq1))
+print(seq1.complement())
+
+print(seq1.translate())
+
+batch = DNABatch([DNA("ATGCCGCGTTACGTACG"), DNA("AACGATCGACTACGA")])
+batch.reverse_complements(inplace=True)
+seq = batch[0]
+print(batch[0])
+print(batch[0] == seq)

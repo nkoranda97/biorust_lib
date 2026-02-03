@@ -1,6 +1,7 @@
 use crate::alphabets::protein;
 use crate::error::{BioError, BioResult};
 use crate::seq::bytes::{self, IntoNeedle, Needle};
+use crate::seq::traits::SeqBytes;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProteinSeq {
@@ -62,6 +63,16 @@ impl ProteinSeq {
     {
         let needle = sub.into_needle()?;
         Ok(bytes::rfind(self.as_bytes(), needle, start, end))
+    }
+}
+
+impl SeqBytes for ProteinSeq {
+    fn as_bytes(&self) -> &[u8] {
+        ProteinSeq::as_bytes(self)
+    }
+
+    fn from_bytes(bytes: Vec<u8>) -> BioResult<Self> {
+        ProteinSeq::new(bytes)
     }
 }
 

@@ -138,6 +138,38 @@ impl DNA {
         let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
         Ok(Self { inner })
     }
+
+    fn __mul__<'py>(&self, num: &Bound<'py, PyAny>) -> PyResult<Self> {
+        let n: isize = num
+            .extract()
+            .map_err(|_| PyTypeError::new_err("num must be int"))?;
+
+        if n <= 0 {
+            let inner =
+                DnaSeq::new(Vec::new()).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            return Ok(Self { inner });
+        }
+
+        let n: usize = n as usize;
+        let bytes = self.inner.as_bytes();
+
+        let total_len = bytes
+            .len()
+            .checked_mul(n)
+            .ok_or_else(|| PyValueError::new_err("resulting sequence is too large"))?;
+
+        let mut out = Vec::with_capacity(total_len);
+        for _ in 0..n {
+            out.extend_from_slice(bytes);
+        }
+
+        let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        Ok(Self { inner })
+    }
+
+    fn __rmul__<'py>(&self, num: &Bound<'py, PyAny>) -> PyResult<Self> {
+        self.__mul__(num)
+    }
 }
 
 #[pyfunction]

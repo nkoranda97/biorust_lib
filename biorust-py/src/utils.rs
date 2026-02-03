@@ -6,7 +6,7 @@ use crate::dna::DNA;
 
 pub fn extract_bytes<'py>(obj: &Bound<'py, PyAny>) -> PyResult<Vec<u8>> {
     if let Ok(dna) = obj.extract::<PyRef<'py, DNA>>() {
-        return Ok(dna.inner.as_bytes().to_vec());
+        return Ok(dna.as_bytes().to_vec());
     }
 
     if let Ok(s) = obj.downcast::<PyString>() {

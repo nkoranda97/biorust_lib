@@ -1,15 +1,14 @@
-use pyo3::exceptions::{PyTypeError, PyValueError};
+use pyo3::basic::CompareOp;
+use pyo3::exceptions::{PyIndexError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyModule, PyString};
+use pyo3::types::{PyBytes, PyModule, PySlice, PyString};
 
 use crate::utils;
 use biorust_core::seq::dna::DnaSeq;
 
-
-
 #[pyclass(frozen)]
 pub struct DNA {
-    pub(crate) inner: DnaSeq, 
+    pub(crate) inner: DnaSeq,
 }
 
 #[pymethods]
@@ -33,20 +32,39 @@ impl DNA {
         }
     }
 
+    #[inline]
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        self.inner.as_bytes()
+    }
+
     fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
-        PyBytes::new_bound(py, self.inner.as_bytes())
+        PyBytes::new_bound(py, self.as_bytes())
     }
 
     fn __len__(&self) -> usize {
-        self.inner.as_bytes().len()
+        self.as_bytes().len()
+    }
+
+    fn __richcmp__<'py>(&self, other: &Bound<'py, PyAny>, op: CompareOp) -> PyResult<bool> {
+        let other = utils::extract_bytes(other)
+            .map_err(|_| PyTypeError::new_err("expected DNA, str, or bytes-like object"))?;
+
+        match op {
+            CompareOp::Eq => Ok(self.as_bytes() == other.as_slice()),
+            CompareOp::Ne => Ok(self.as_bytes() != other.as_slice()),
+            CompareOp::Lt => Ok(self.as_bytes() < other.as_slice()),
+            CompareOp::Le => Ok(self.as_bytes() <= other.as_slice()),
+            CompareOp::Gt => Ok(self.as_bytes() > other.as_slice()),
+            CompareOp::Ge => Ok(self.as_bytes() >= other.as_slice()),
+        }
     }
 
     fn __bytes__<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
-        PyBytes::new_bound(py, self.inner.as_bytes())
+        PyBytes::new_bound(py, self.as_bytes())
     }
 
     fn __str__(&self) -> PyResult<String> {
-        std::str::from_utf8(self.inner.as_bytes())
+        std::str::from_utf8(self.as_bytes())
             .map(|s| s.to_string())
             .map_err(|e| PyValueError::new_err(e.to_string()))
     }
@@ -56,11 +74,54 @@ impl DNA {
         Ok(format!("DNA({s:?})"))
     }
 
+    fn __getitem__<'py>(&self, py: Python<'py>, index: &Bound<'py, PyAny>) -> PyResult<PyObject> {
+        let bytes = self.inner.as_bytes();
+
+        if let Ok(slice) = index.downcast::<PySlice>() {
+            let idx = slice.indices(bytes.len() as isize)?;
+            let (start, stop, step) = (idx.start, idx.stop, idx.step);
+
+            let mut out = Vec::new();
+
+            if step > 0 {
+                let mut i = start;
+                while i < stop {
+                    out.push(bytes[i as usize]);
+                    i += step;
+                }
+            } else {
+                let mut i = start;
+                while i > stop {
+                    out.push(bytes[i as usize]);
+                    i += step; // negative
+                }
+            }
+
+            let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            return Ok(Py::new(py, DNA { inner })?.to_object(py));
+        }
+
+        let index: isize = index
+            .extract()
+            .map_err(|_| PyTypeError::new_err("index must be int or slice"))?;
+
+        let n = bytes.len() as isize;
+        let i = if index < 0 { index + n } else { index };
+
+        if i < 0 || i >= n {
+            return Err(PyIndexError::new_err("index out of range"));
+        }
+
+        let one = vec![bytes[i as usize]];
+        let inner = DnaSeq::new(one).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        Ok(Py::new(py, DNA { inner })?.to_object(py))
+    }
+
     fn __radd__<'py>(&self, seq: &Bound<'py, PyAny>) -> PyResult<Self> {
         let mut left = utils::extract_bytes(seq)?;
 
         // left + self
-        left.extend_from_slice(self.inner.as_bytes());
+        left.extend_from_slice(self.as_bytes());
 
         let inner = DnaSeq::new(left).map_err(|e| PyValueError::new_err(e.to_string()))?;
         Ok(Self { inner })
@@ -71,7 +132,7 @@ impl DNA {
 
         // self + right
         let mut out = Vec::with_capacity(self.inner.as_bytes().len() + right.len());
-        out.extend_from_slice(self.inner.as_bytes());
+        out.extend_from_slice(self.as_bytes());
         out.extend_from_slice(&right);
 
         let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;

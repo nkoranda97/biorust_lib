@@ -2,6 +2,7 @@ use pyo3::prelude::*;
 
 mod dna;
 mod protein;
+mod seq_shared;
 mod utils;
 
 #[pymodule]

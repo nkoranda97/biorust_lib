@@ -1,11 +1,12 @@
 #![allow(clippy::useless_conversion)]
 
 use pyo3::basic::CompareOp;
-use pyo3::exceptions::{PyIndexError, PyTypeError, PyValueError};
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyModule, PySlice, PyString, PyTuple};
+use pyo3::types::{PyBytes, PyModule, PyString, PyTuple};
 
 use crate::protein::Protein;
+use crate::seq_shared;
 use crate::utils::{self, PyDnaNeedle};
 use biorust_core::seq::dna::DnaSeq;
 
@@ -54,7 +55,7 @@ impl DNA {
     }
 
     fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
-        PyBytes::new_bound(py, self.as_bytes())
+        seq_shared::seq_to_bytes(py, self.as_bytes())
     }
 
     fn __len__(&self) -> usize {
@@ -62,8 +63,7 @@ impl DNA {
     }
 
     fn __richcmp__(&self, other: &Bound<'_, PyAny>, op: CompareOp) -> PyResult<bool> {
-        let other = utils::extract_bytes(other)
-            .map_err(|_| PyTypeError::new_err("expected DNA, str, or bytes-like object"))?;
+        let other = utils::extract_dna_bytes(other)?;
 
         match op {
             CompareOp::Eq => Ok(self.as_bytes() == other.as_slice()),
@@ -76,111 +76,51 @@ impl DNA {
     }
 
     fn __bytes__<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
-        PyBytes::new_bound(py, self.as_bytes())
+        seq_shared::seq_to_bytes(py, self.as_bytes())
     }
 
     fn __str__(&self) -> PyResult<String> {
-        std::str::from_utf8(self.as_bytes())
-            .map(|s| s.to_string())
-            .map_err(|e| PyValueError::new_err(e.to_string()))
+        seq_shared::seq_str(self.as_bytes())
     }
 
     fn __repr__(&self) -> PyResult<String> {
-        let s = std::str::from_utf8(self.inner.as_bytes()).unwrap_or("<bytes>");
-        Ok(format!("DNA({s:?})"))
+        Ok(seq_shared::seq_repr(self.as_bytes(), "DNA"))
     }
 
     fn __getitem__<'py>(&self, py: Python<'py>, index: &Bound<'py, PyAny>) -> PyResult<PyObject> {
-        let bytes = self.inner.as_bytes();
-
-        if let Ok(slice) = index.downcast::<PySlice>() {
-            let idx = slice.indices(bytes.len() as isize)?;
-            let (start, stop, step) = (idx.start, idx.stop, idx.step);
-
-            let mut out = Vec::new();
-
-            if step > 0 {
-                let mut i = start;
-                while i < stop {
-                    out.push(bytes[i as usize]);
-                    i += step;
-                }
-            } else {
-                let mut i = start;
-                while i > stop {
-                    out.push(bytes[i as usize]);
-                    i += step; // negative
-                }
-            }
-
+        let make = |out: Vec<u8>| -> PyResult<PyObject> {
             let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
-            return Ok(Py::new(py, DNA { inner })?.to_object(py));
-        }
+            Ok(Py::new(py, DNA { inner })?.to_object(py))
+        };
 
-        let index: isize = index
-            .extract()
-            .map_err(|_| PyTypeError::new_err("index must be int or slice"))?;
-
-        let n = bytes.len() as isize;
-        let i = if index < 0 { index + n } else { index };
-
-        if i < 0 || i >= n {
-            return Err(PyIndexError::new_err("index out of range"));
-        }
-
-        let one = vec![bytes[i as usize]];
-        let inner = DnaSeq::new(one).map_err(|e| PyValueError::new_err(e.to_string()))?;
-        Ok(Py::new(py, DNA { inner })?.to_object(py))
+        seq_shared::seq_getitem(self.as_bytes(), index, make)
     }
 
     fn __radd__(&self, seq: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let mut left = utils::extract_bytes(seq)?;
+        let make = |out: Vec<u8>| -> PyResult<Self> {
+            let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            Ok(Self { inner })
+        };
 
-        // left + self
-        left.extend_from_slice(self.as_bytes());
-
-        let inner = DnaSeq::new(left).map_err(|e| PyValueError::new_err(e.to_string()))?;
-        Ok(Self { inner })
+        seq_shared::seq_radd(seq, self.as_bytes(), utils::extract_dna_bytes, make)
     }
 
     fn __add__(&self, seq: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let right = utils::extract_bytes(seq)?;
+        let make = |out: Vec<u8>| -> PyResult<Self> {
+            let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            Ok(Self { inner })
+        };
 
-        // self + right
-        let mut out = Vec::with_capacity(self.inner.as_bytes().len() + right.len());
-        out.extend_from_slice(self.as_bytes());
-        out.extend_from_slice(&right);
-
-        let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
-        Ok(Self { inner })
+        seq_shared::seq_add(self.as_bytes(), seq, utils::extract_dna_bytes, make)
     }
 
     fn __mul__(&self, num: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let n: isize = num
-            .extract()
-            .map_err(|_| PyTypeError::new_err("num must be int"))?;
+        let make = |out: Vec<u8>| -> PyResult<Self> {
+            let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            Ok(Self { inner })
+        };
 
-        if n <= 0 {
-            let inner =
-                DnaSeq::new(Vec::new()).map_err(|e| PyValueError::new_err(e.to_string()))?;
-            return Ok(Self { inner });
-        }
-
-        let n: usize = n as usize;
-        let bytes = self.inner.as_bytes();
-
-        let total_len = bytes
-            .len()
-            .checked_mul(n)
-            .ok_or_else(|| PyValueError::new_err("resulting sequence is too large"))?;
-
-        let mut out = Vec::with_capacity(total_len);
-        for _ in 0..n {
-            out.extend_from_slice(bytes);
-        }
-
-        let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
-        Ok(Self { inner })
+        seq_shared::seq_mul(self.as_bytes(), num, make)
     }
 
     fn __rmul__(&self, num: &Bound<'_, PyAny>) -> PyResult<Self> {
@@ -230,16 +170,10 @@ impl DNA {
         start: Option<isize>,
         end: Option<isize>,
     ) -> PyResult<bool> {
-        let (s, e) = utils::normalize_range(self.as_bytes().len(), start, end);
-        let bytes = self.as_bytes();
-        let window: &[u8] = if s <= e { &bytes[s..e] } else { &bytes[0..0] };
-
+        let window = seq_shared::startswith_window(self.as_bytes(), start, end);
         let matches = |needle: PyDnaNeedle<'_>| -> bool {
-            match needle {
-                PyDnaNeedle::Dna(other) => window.starts_with(other.as_bytes()),
-                PyDnaNeedle::Bytes(seq) => window.starts_with(seq.as_slice()),
-                PyDnaNeedle::Byte(b) => window.first().map(|v| *v == b).unwrap_or(false),
-            }
+            let needle = dna_needle_bytes(&needle);
+            seq_shared::needle_starts_with(window, needle)
         };
 
         if let Ok(tuple) = prefix.downcast::<PyTuple>() {
@@ -263,16 +197,10 @@ impl DNA {
         start: Option<isize>,
         end: Option<isize>,
     ) -> PyResult<bool> {
-        let (s, e) = utils::normalize_range(self.as_bytes().len(), start, end);
-        let bytes = self.as_bytes();
-        let window: &[u8] = if s <= e { &bytes[s..e] } else { &bytes[0..0] };
-
+        let window = seq_shared::startswith_window(self.as_bytes(), start, end);
         let matches = |needle: PyDnaNeedle<'_>| -> bool {
-            match needle {
-                PyDnaNeedle::Dna(other) => window.ends_with(other.as_bytes()),
-                PyDnaNeedle::Bytes(seq) => window.ends_with(seq.as_slice()),
-                PyDnaNeedle::Byte(b) => window.last().map(|v| *v == b).unwrap_or(false),
-            }
+            let needle = dna_needle_bytes(&needle);
+            seq_shared::needle_ends_with(window, needle)
         };
 
         if let Ok(tuple) = suffix.downcast::<PyTuple>() {
@@ -298,11 +226,17 @@ impl DNA {
     ) -> PyResult<Vec<Py<DNA>>> {
         let bytes = self.as_bytes();
         let parts = match sep {
-            None => split_on_whitespace(bytes, maxsplit),
-            Some(obj) => split_on_sep(bytes, obj, maxsplit)?,
+            None => seq_shared::split_on_whitespace(bytes, maxsplit),
+            Some(obj) => {
+                let needle = utils::extract_dna_needle(obj)?;
+                seq_shared::split_on_sep(bytes, dna_needle_bytes(&needle), maxsplit)?
+            }
         };
 
-        dna_list_from_parts(py, parts)
+        seq_shared::list_from_parts(parts, |part| {
+            let inner = DnaSeq::new(part).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            Py::new(py, DNA { inner })
+        })
     }
 
     #[pyo3(signature = (sep=None, maxsplit=-1))]
@@ -314,17 +248,28 @@ impl DNA {
     ) -> PyResult<Vec<Py<DNA>>> {
         let bytes = self.as_bytes();
         let parts = match sep {
-            None => rsplit_on_whitespace(bytes, maxsplit),
-            Some(obj) => rsplit_on_sep(bytes, obj, maxsplit)?,
+            None => seq_shared::rsplit_on_whitespace(bytes, maxsplit),
+            Some(obj) => {
+                let needle = utils::extract_dna_needle(obj)?;
+                seq_shared::rsplit_on_sep(bytes, dna_needle_bytes(&needle), maxsplit)?
+            }
         };
 
-        dna_list_from_parts(py, parts)
+        seq_shared::list_from_parts(parts, |part| {
+            let inner = DnaSeq::new(part).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            Py::new(py, DNA { inner })
+        })
     }
 
     #[pyo3(signature = (chars=None))]
     fn strip(&self, chars: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
         let bytes = self.as_bytes();
-        let (start, end) = trim_range(bytes, chars, true, true)?;
+        let needle = match chars {
+            Some(obj) => Some(utils::extract_dna_needle(obj)?),
+            None => None,
+        };
+        let needle = needle.as_ref().map(dna_needle_bytes);
+        let (start, end) = seq_shared::trim_range(bytes, needle, true, true)?;
         let inner = DnaSeq::new(bytes[start..end].to_vec())
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         Ok(Self { inner })
@@ -333,7 +278,12 @@ impl DNA {
     #[pyo3(signature = (chars=None))]
     fn lstrip(&self, chars: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
         let bytes = self.as_bytes();
-        let (start, end) = trim_range(bytes, chars, true, false)?;
+        let needle = match chars {
+            Some(obj) => Some(utils::extract_dna_needle(obj)?),
+            None => None,
+        };
+        let needle = needle.as_ref().map(dna_needle_bytes);
+        let (start, end) = seq_shared::trim_range(bytes, needle, true, false)?;
         let inner = DnaSeq::new(bytes[start..end].to_vec())
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         Ok(Self { inner })
@@ -342,30 +292,31 @@ impl DNA {
     #[pyo3(signature = (chars=None))]
     fn rstrip(&self, chars: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
         let bytes = self.as_bytes();
-        let (start, end) = trim_range(bytes, chars, false, true)?;
+        let needle = match chars {
+            Some(obj) => Some(utils::extract_dna_needle(obj)?),
+            None => None,
+        };
+        let needle = needle.as_ref().map(dna_needle_bytes);
+        let (start, end) = seq_shared::trim_range(bytes, needle, false, true)?;
         let inner = DnaSeq::new(bytes[start..end].to_vec())
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         Ok(Self { inner })
     }
 
     fn upper(&self) -> PyResult<Self> {
-        let out: Vec<u8> = self
-            .as_bytes()
-            .iter()
-            .map(|b| b.to_ascii_uppercase())
-            .collect();
-        let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
-        Ok(Self { inner })
+        let make = |out: Vec<u8>| -> PyResult<Self> {
+            let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            Ok(Self { inner })
+        };
+        seq_shared::seq_upper(self.as_bytes(), make)
     }
 
     fn lower(&self) -> PyResult<Self> {
-        let out: Vec<u8> = self
-            .as_bytes()
-            .iter()
-            .map(|b| b.to_ascii_lowercase())
-            .collect();
-        let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
-        Ok(Self { inner })
+        let make = |out: Vec<u8>| -> PyResult<Self> {
+            let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            Ok(Self { inner })
+        };
+        seq_shared::seq_lower(self.as_bytes(), make)
     }
 
     #[pyo3(signature = (sub, start=None, end=None))]
@@ -465,7 +416,7 @@ fn complement(seq: &Bound<'_, PyAny>) -> PyResult<DNA> {
         });
     }
 
-    let bytes = utils::extract_bytes(seq)?;
+    let bytes = utils::extract_dna_bytes(seq)?;
     let inner = DnaSeq::new(bytes).map_err(|e| PyValueError::new_err(e.to_string()))?;
     Ok(DNA {
         inner: inner.complement(),
@@ -478,356 +429,10 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-fn dna_list_from_parts(py: Python<'_>, parts: Vec<Vec<u8>>) -> PyResult<Vec<Py<DNA>>> {
-    let mut out = Vec::with_capacity(parts.len());
-    for part in parts {
-        let inner = DnaSeq::new(part).map_err(|e| PyValueError::new_err(e.to_string()))?;
-        out.push(Py::new(py, DNA { inner })?);
-    }
-    Ok(out)
-}
-
-fn split_on_whitespace(hay: &[u8], maxsplit: isize) -> Vec<Vec<u8>> {
-    let len = hay.len();
-    let maxsplit = if maxsplit < 0 {
-        usize::MAX
-    } else {
-        maxsplit as usize
-    };
-
-    let mut out = Vec::new();
-    let mut i = 0usize;
-
-    if maxsplit == 0 {
-        while i < len && hay[i].is_ascii_whitespace() {
-            i += 1;
-        }
-        if i < len {
-            out.push(hay[i..].to_vec());
-        }
-        return out;
-    }
-
-    let mut splits = 0usize;
-    while i < len {
-        while i < len && hay[i].is_ascii_whitespace() {
-            i += 1;
-        }
-        if i >= len {
-            break;
-        }
-
-        if splits == maxsplit {
-            out.push(hay[i..].to_vec());
-            return out;
-        }
-
-        let start = i;
-        while i < len && !hay[i].is_ascii_whitespace() {
-            i += 1;
-        }
-        out.push(hay[start..i].to_vec());
-        splits += 1;
-    }
-
-    out
-}
-
-fn rsplit_on_whitespace(hay: &[u8], maxsplit: isize) -> Vec<Vec<u8>> {
-    let len = hay.len();
-    let maxsplit = if maxsplit < 0 {
-        usize::MAX
-    } else {
-        maxsplit as usize
-    };
-
-    let mut out = Vec::new();
-    let mut i = len;
-
-    if maxsplit == 0 {
-        while i > 0 && hay[i - 1].is_ascii_whitespace() {
-            i -= 1;
-        }
-        if i == 0 {
-            return out;
-        }
-        let mut start = 0usize;
-        while start < i && hay[start].is_ascii_whitespace() {
-            start += 1;
-        }
-        out.push(hay[start..i].to_vec());
-        return out;
-    }
-
-    let mut splits = 0usize;
-    while i > 0 {
-        while i > 0 && hay[i - 1].is_ascii_whitespace() {
-            i -= 1;
-        }
-        if i == 0 {
-            break;
-        }
-
-        if splits == maxsplit {
-            let mut start = 0usize;
-            while start < i && hay[start].is_ascii_whitespace() {
-                start += 1;
-            }
-            out.push(hay[start..i].to_vec());
-            out.reverse();
-            return out;
-        }
-
-        let end = i;
-        while i > 0 && !hay[i - 1].is_ascii_whitespace() {
-            i -= 1;
-        }
-        out.push(hay[i..end].to_vec());
-        splits += 1;
-    }
-
-    out.reverse();
-    out
-}
-
-fn split_on_sep(hay: &[u8], sep: &Bound<'_, PyAny>, maxsplit: isize) -> PyResult<Vec<Vec<u8>>> {
-    let needle = utils::extract_dna_needle(sep)?;
-
+fn dna_needle_bytes<'a>(needle: &'a PyDnaNeedle<'a>) -> seq_shared::NeedleBytes<'a> {
     match needle {
-        PyDnaNeedle::Byte(b) => Ok(split_on_byte(hay, b, maxsplit)),
-        PyDnaNeedle::Bytes(bytes) => split_on_bytes(hay, bytes.as_slice(), maxsplit),
-        PyDnaNeedle::Dna(other) => split_on_bytes(hay, other.as_bytes(), maxsplit),
+        PyDnaNeedle::Dna(other) => seq_shared::NeedleBytes::Bytes(other.as_bytes()),
+        PyDnaNeedle::Bytes(bytes) => seq_shared::NeedleBytes::Bytes(bytes.as_slice()),
+        PyDnaNeedle::Byte(b) => seq_shared::NeedleBytes::Byte(*b),
     }
-}
-
-fn rsplit_on_sep(hay: &[u8], sep: &Bound<'_, PyAny>, maxsplit: isize) -> PyResult<Vec<Vec<u8>>> {
-    let needle = utils::extract_dna_needle(sep)?;
-
-    match needle {
-        PyDnaNeedle::Byte(b) => Ok(rsplit_on_byte(hay, b, maxsplit)),
-        PyDnaNeedle::Bytes(bytes) => rsplit_on_bytes(hay, bytes.as_slice(), maxsplit),
-        PyDnaNeedle::Dna(other) => rsplit_on_bytes(hay, other.as_bytes(), maxsplit),
-    }
-}
-
-fn split_on_bytes(hay: &[u8], sep: &[u8], maxsplit: isize) -> PyResult<Vec<Vec<u8>>> {
-    if sep.is_empty() {
-        return Err(PyValueError::new_err("empty separator"));
-    }
-
-    if sep.len() == 1 {
-        return Ok(split_on_byte(hay, sep[0], maxsplit));
-    }
-
-    Ok(split_on_bytes_multi(hay, sep, maxsplit))
-}
-
-fn rsplit_on_bytes(hay: &[u8], sep: &[u8], maxsplit: isize) -> PyResult<Vec<Vec<u8>>> {
-    if sep.is_empty() {
-        return Err(PyValueError::new_err("empty separator"));
-    }
-
-    if sep.len() == 1 {
-        return Ok(rsplit_on_byte(hay, sep[0], maxsplit));
-    }
-
-    Ok(rsplit_on_bytes_multi(hay, sep, maxsplit))
-}
-
-fn split_on_byte(hay: &[u8], b: u8, maxsplit: isize) -> Vec<Vec<u8>> {
-    let maxsplit = if maxsplit < 0 {
-        usize::MAX
-    } else {
-        maxsplit as usize
-    };
-
-    if maxsplit == 0 {
-        return vec![hay.to_vec()];
-    }
-
-    let mut out = Vec::new();
-    let mut start = 0usize;
-    let mut splits = 0usize;
-
-    for (i, &c) in hay.iter().enumerate() {
-        if c == b && splits < maxsplit {
-            out.push(hay[start..i].to_vec());
-            start = i + 1;
-            splits += 1;
-        }
-    }
-
-    out.push(hay[start..].to_vec());
-    out
-}
-
-fn rsplit_on_byte(hay: &[u8], b: u8, maxsplit: isize) -> Vec<Vec<u8>> {
-    let maxsplit = if maxsplit < 0 {
-        usize::MAX
-    } else {
-        maxsplit as usize
-    };
-
-    if maxsplit == 0 {
-        return vec![hay.to_vec()];
-    }
-
-    let mut out = Vec::new();
-    let mut end = hay.len();
-    let mut splits = 0usize;
-
-    let mut i = hay.len();
-    while i > 0 {
-        i -= 1;
-        if hay[i] == b && splits < maxsplit {
-            out.push(hay[i + 1..end].to_vec());
-            end = i;
-            splits += 1;
-        }
-    }
-
-    out.push(hay[..end].to_vec());
-    out.reverse();
-    out
-}
-
-fn split_on_bytes_multi(hay: &[u8], sep: &[u8], maxsplit: isize) -> Vec<Vec<u8>> {
-    let maxsplit = if maxsplit < 0 {
-        usize::MAX
-    } else {
-        maxsplit as usize
-    };
-
-    if maxsplit == 0 {
-        return vec![hay.to_vec()];
-    }
-
-    let mut out = Vec::new();
-    let mut start = 0usize;
-    let mut splits = 0usize;
-
-    while splits < maxsplit {
-        let pos = find_subslice(hay, sep, start);
-        match pos {
-            Some(i) => {
-                out.push(hay[start..i].to_vec());
-                start = i + sep.len();
-                splits += 1;
-            }
-            None => break,
-        }
-    }
-
-    out.push(hay[start..].to_vec());
-    out
-}
-
-fn rsplit_on_bytes_multi(hay: &[u8], sep: &[u8], maxsplit: isize) -> Vec<Vec<u8>> {
-    let maxsplit = if maxsplit < 0 {
-        usize::MAX
-    } else {
-        maxsplit as usize
-    };
-
-    if maxsplit == 0 {
-        return vec![hay.to_vec()];
-    }
-
-    let mut out = Vec::new();
-    let mut end = hay.len();
-    let mut splits = 0usize;
-
-    while splits < maxsplit {
-        let pos = rfind_subslice(hay, sep, end);
-        match pos {
-            Some(i) => {
-                out.push(hay[i + sep.len()..end].to_vec());
-                end = i;
-                splits += 1;
-            }
-            None => break,
-        }
-    }
-
-    out.push(hay[..end].to_vec());
-    out.reverse();
-    out
-}
-
-fn find_subslice(hay: &[u8], needle: &[u8], start: usize) -> Option<usize> {
-    if needle.len() > hay.len().saturating_sub(start) {
-        return None;
-    }
-    hay[start..]
-        .windows(needle.len())
-        .position(|w| w == needle)
-        .map(|i| start + i)
-}
-
-fn rfind_subslice(hay: &[u8], needle: &[u8], end: usize) -> Option<usize> {
-    if needle.len() > end {
-        return None;
-    }
-    hay[..end].windows(needle.len()).rposition(|w| w == needle)
-}
-
-fn trim_range(
-    hay: &[u8],
-    chars: Option<&Bound<'_, PyAny>>,
-    left: bool,
-    right: bool,
-) -> PyResult<(usize, usize)> {
-    let len = hay.len();
-    let mut start = 0usize;
-    let mut end = len;
-
-    let mut mask = [false; 256];
-    let mut use_mask = false;
-    let mut single_byte: Option<u8> = None;
-
-    if let Some(obj) = chars {
-        let needle = utils::extract_dna_needle(obj)?;
-        let bytes = match needle {
-            PyDnaNeedle::Dna(other) => other.as_bytes().to_vec(),
-            PyDnaNeedle::Bytes(bytes) => bytes,
-            PyDnaNeedle::Byte(b) => vec![b],
-        };
-
-        if bytes.is_empty() {
-            return Ok((0, len));
-        }
-
-        if bytes.len() == 1 {
-            single_byte = Some(bytes[0]);
-        } else {
-            use_mask = true;
-            for &b in bytes.iter() {
-                mask[b as usize] = true;
-            }
-        }
-    }
-
-    let is_trim = |b: u8, single_byte: Option<u8>, use_mask: bool, mask: &[bool; 256]| -> bool {
-        if let Some(sb) = single_byte {
-            return b == sb;
-        }
-        if use_mask {
-            return mask[b as usize];
-        }
-        b.is_ascii_whitespace()
-    };
-
-    if left {
-        while start < end && is_trim(hay[start], single_byte, use_mask, &mask) {
-            start += 1;
-        }
-    }
-
-    if right {
-        while end > start && is_trim(hay[end - 1], single_byte, use_mask, &mask) {
-            end -= 1;
-        }
-    }
-
-    Ok((start, end))
 }

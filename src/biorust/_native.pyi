@@ -122,4 +122,112 @@ class Protein:
     def __str__(self) -> str: ...
     def __repr__(self) -> str: ...
 
+    # comparisons
+    def __eq__(self, other: str | bytes | bytearray | memoryview | Protein) -> bool: ...
+    def __ne__(self, other: str | bytes | bytearray | memoryview | Protein) -> bool: ...
+    def __lt__(self, other: str | bytes | bytearray | memoryview | Protein) -> bool: ...
+    def __le__(self, other: str | bytes | bytearray | memoryview | Protein) -> bool: ...
+    def __gt__(self, other: str | bytes | bytearray | memoryview | Protein) -> bool: ...
+    def __ge__(self, other: str | bytes | bytearray | memoryview | Protein) -> bool: ...
+
+    # concatenation
+    def __add__(
+        self, other: str | bytes | bytearray | memoryview | Protein
+    ) -> Protein: ...
+    def __radd__(
+        self, other: str | bytes | bytearray | memoryview | Protein
+    ) -> Protein: ...
+
+    # mul
+    def __mul__(self, other: int) -> Protein: ...
+    def __rmul__(self, other: int) -> Protein: ...
+
+    # indexing
+    @overload
+    def __getitem__(self, other: int) -> Protein: ...
+    @overload
+    def __getitem__(self, other: slice) -> Protein: ...
+    def __getitem__(self, other): ...
+    def count(
+        self, other: str | bytes | bytearray | memoryview | int | Protein
+    ) -> int: ...
+    def count_overlap(
+        self, sub: Protein | str | bytes | bytearray | memoryview | int
+    ) -> int: ...
+    def __contains__(
+        self, other: str | bytes | bytearray | memoryview | int | Protein
+    ) -> bool: ...
+    def find(
+        self,
+        sub: str | bytes | bytearray | memoryview | int | Protein,
+        start: int | None = ...,
+        end: int | None = ...,
+    ) -> int: ...
+    def index(
+        self,
+        sub: str | bytes | bytearray | memoryview | int | Protein,
+        start: int | None = ...,
+        end: int | None = ...,
+    ) -> int: ...
+    def rfind(
+        self,
+        sub: str | bytes | bytearray | memoryview | int | Protein,
+        start: int | None = ...,
+        end: int | None = ...,
+    ) -> int: ...
+    def rindex(
+        self,
+        sub: str | bytes | bytearray | memoryview | int | Protein,
+        start: int | None = ...,
+        end: int | None = ...,
+    ) -> int: ...
+    def split(
+        self,
+        sep: str | bytes | bytearray | memoryview | int | Protein | None = ...,
+        maxsplit: int = ...,
+    ) -> list[Protein]: ...
+    def rsplit(
+        self,
+        sep: str | bytes | bytearray | memoryview | int | Protein | None = ...,
+        maxsplit: int = ...,
+    ) -> list[Protein]: ...
+    def strip(
+        self,
+        chars: str | bytes | bytearray | memoryview | int | Protein | None = ...,
+    ) -> Protein: ...
+    def lstrip(
+        self,
+        chars: str | bytes | bytearray | memoryview | int | Protein | None = ...,
+    ) -> Protein: ...
+    def rstrip(
+        self,
+        chars: str | bytes | bytearray | memoryview | int | Protein | None = ...,
+    ) -> Protein: ...
+    def upper(self) -> Protein: ...
+    def lower(self) -> Protein: ...
+    def startswith(
+        self,
+        sub: str
+        | bytes
+        | bytearray
+        | memoryview
+        | int
+        | Protein
+        | tuple[str | bytes | bytearray | memoryview | int | Protein, ...],
+        start: int | None = ...,
+        end: int | None = ...,
+    ) -> bool: ...
+    def endswith(
+        self,
+        sub: str
+        | bytes
+        | bytearray
+        | memoryview
+        | int
+        | Protein
+        | tuple[str | bytes | bytearray | memoryview | int | Protein, ...],
+        start: int | None = ...,
+        end: int | None = ...,
+    ) -> bool: ...
+
 def complement(seq: str | bytes | bytearray | memoryview | DNA) -> DNA: ...

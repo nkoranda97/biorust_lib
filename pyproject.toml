@@ -19,5 +19,10 @@ module-name = "biorust._native"
 manifest-path = "biorust-py/Cargo.toml"
 python-source = "src"
 
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
+
 [project.optional-dependencies]
 dev = ["pytest", "maturin"]

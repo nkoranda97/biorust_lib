@@ -1,3 +1,5 @@
+#![allow(clippy::useless_conversion)]
+
 use pyo3::basic::CompareOp;
 use pyo3::exceptions::{PyIndexError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
@@ -6,6 +8,7 @@ use pyo3::types::{PyBytes, PyModule, PySlice, PyString};
 use crate::utils::{self, PyDnaNeedle};
 use biorust_core::seq::dna::DnaSeq;
 
+#[allow(clippy::upper_case_acronyms)]
 #[pyclass(frozen)]
 pub struct DNA {
     pub(crate) inner: DnaSeq,
@@ -14,7 +17,7 @@ pub struct DNA {
 #[pymethods]
 impl DNA {
     #[new]
-    fn new<'py>(seq: &Bound<'py, PyAny>) -> PyResult<Self> {
+    fn new(seq: &Bound<'_, PyAny>) -> PyResult<Self> {
         let bytes: Vec<u8> = if let Ok(s) = seq.downcast::<PyString>() {
             s.to_str()?.as_bytes().to_vec()
         } else {
@@ -45,7 +48,7 @@ impl DNA {
         self.as_bytes().len()
     }
 
-    fn __richcmp__<'py>(&self, other: &Bound<'py, PyAny>, op: CompareOp) -> PyResult<bool> {
+    fn __richcmp__(&self, other: &Bound<'_, PyAny>, op: CompareOp) -> PyResult<bool> {
         let other = utils::extract_bytes(other)
             .map_err(|_| PyTypeError::new_err("expected DNA, str, or bytes-like object"))?;
 
@@ -117,7 +120,7 @@ impl DNA {
         Ok(Py::new(py, DNA { inner })?.to_object(py))
     }
 
-    fn __radd__<'py>(&self, seq: &Bound<'py, PyAny>) -> PyResult<Self> {
+    fn __radd__(&self, seq: &Bound<'_, PyAny>) -> PyResult<Self> {
         let mut left = utils::extract_bytes(seq)?;
 
         // left + self
@@ -127,7 +130,7 @@ impl DNA {
         Ok(Self { inner })
     }
 
-    fn __add__<'py>(&self, seq: &Bound<'py, PyAny>) -> PyResult<Self> {
+    fn __add__(&self, seq: &Bound<'_, PyAny>) -> PyResult<Self> {
         let right = utils::extract_bytes(seq)?;
 
         // self + right
@@ -139,7 +142,7 @@ impl DNA {
         Ok(Self { inner })
     }
 
-    fn __mul__<'py>(&self, num: &Bound<'py, PyAny>) -> PyResult<Self> {
+    fn __mul__(&self, num: &Bound<'_, PyAny>) -> PyResult<Self> {
         let n: isize = num
             .extract()
             .map_err(|_| PyTypeError::new_err("num must be int"))?;
@@ -167,11 +170,11 @@ impl DNA {
         Ok(Self { inner })
     }
 
-    fn __rmul__<'py>(&self, num: &Bound<'py, PyAny>) -> PyResult<Self> {
+    fn __rmul__(&self, num: &Bound<'_, PyAny>) -> PyResult<Self> {
         self.__mul__(num)
     }
 
-    fn count<'py>(&self, sub: &'py Bound<'py, PyAny>) -> PyResult<usize> {
+    fn count(&self, sub: &Bound<'_, PyAny>) -> PyResult<usize> {
         let needle = utils::extract_dna_needle(sub)?;
 
         let res = match needle {
@@ -183,7 +186,7 @@ impl DNA {
         res.map_err(|e| PyValueError::new_err(e.to_string()))
     }
 
-    fn count_overlap<'py>(&self, sub: &'py Bound<'py, PyAny>) -> PyResult<usize> {
+    fn count_overlap(&self, sub: &Bound<'_, PyAny>) -> PyResult<usize> {
         let needle = utils::extract_dna_needle(sub)?;
 
         let res = match needle {

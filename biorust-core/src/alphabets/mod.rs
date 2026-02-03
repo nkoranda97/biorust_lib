@@ -50,21 +50,21 @@ impl Alphabet {
     }
 
     pub fn intersection(&self, other: &Alphabet) -> Self {
-        return Alphabet {
+        Alphabet {
             symbols: self.symbols.intersection(&other.symbols).collect(),
-        };
+        }
     }
 
     pub fn difference(&self, others: &Alphabet) -> Self {
-        return Alphabet {
+        Alphabet {
             symbols: self.symbols.difference(&others.symbols).collect(),
-        };
+        }
     }
 
     pub fn union(&self, others: &Alphabet) -> Self {
-        return Alphabet {
+        Alphabet {
             symbols: self.symbols.union(&others.symbols).collect(),
-        };
+        }
     }
 }
 
@@ -77,14 +77,17 @@ impl RankTransform {
     pub fn new(alphabet: &Alphabet) -> Self {
         let mut ranks = VecMap::new();
         for (r, c) in alphabet.symbols.iter().enumerate() {
-            ranks.insert(c as usize, r as u8);
+            ranks.insert(c, r as u8);
         }
         RankTransform { ranks }
     }
 
     #[inline]
     pub fn get(&self, a: u8) -> u8 {
-        *self.ranks.get(&(a as usize)).expect("Unexpected character.")
+        *self
+            .ranks
+            .get(&(a as usize))
+            .expect("Unexpected character.")
     }
 
     pub fn transform<C, T>(&self, text: T) -> Vec<u8>
@@ -175,13 +178,13 @@ where
     T: Iterator<Item = C>,
 {
     text: T,
-    ranks: & 'a RankTransform,
+    ranks: &'a RankTransform,
     bits: u32,
     mask: usize,
     qgram: usize,
 }
 
-impl<'a, C, T> QGrams<'a, C, T>
+impl<C, T> QGrams<'_, C, T>
 where
     C: Borrow<u8>,
     T: Iterator<Item = C>,
@@ -194,7 +197,7 @@ where
     }
 }
 
-impl<'a, C, T> Iterator for QGrams<'a, C, T>
+impl<C, T> Iterator for QGrams<'_, C, T>
 where
     C: Borrow<u8>,
     T: Iterator<Item = C>,
@@ -218,7 +221,7 @@ where
     }
 }
 
-impl<'a, C, T> ExactSizeIterator for QGrams<'a, C, T>
+impl<C, T> ExactSizeIterator for QGrams<'_, C, T>
 where
     C: Borrow<u8>,
     T: ExactSizeIterator<Item = C>,
@@ -238,7 +241,7 @@ where
     qgram: usize,
 }
 
-impl<'a, C, T> RevQGrams<'a, C, T>
+impl<C, T> RevQGrams<'_, C, T>
 where
     C: Borrow<u8>,
     T: DoubleEndedIterator<Item = C>,
@@ -250,7 +253,7 @@ where
     }
 }
 
-impl<'a, C, T> Iterator for RevQGrams<'a, C, T>
+impl<C, T> Iterator for RevQGrams<'_, C, T>
 where
     C: Borrow<u8>,
     T: DoubleEndedIterator<Item = C>,
@@ -274,7 +277,7 @@ where
     }
 }
 
-impl<'a, C, T> ExactSizeIterator for RevQGrams<'a, C, T>
+impl<C, T> ExactSizeIterator for RevQGrams<'_, C, T>
 where
     C: Borrow<u8>,
     T: DoubleEndedIterator<Item = C> + ExactSizeIterator<Item = C>,

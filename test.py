@@ -21,5 +21,5 @@ print(seq1)
 print(seq2)
 
 seq1 = DNA("AAAAAAA")
-print (seq1.count("AAA"))
-print (seq1.count_overlap("AAA"))
+print(seq1.count("AAA"))
+print(seq1.count_overlap("AAA"))

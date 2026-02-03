@@ -37,7 +37,6 @@ pub fn reverse_complement(text: &[u8]) -> Vec<u8> {
     text.iter().rev().map(|&a| complement(a)).collect()
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,7 +1,7 @@
 use crate::alphabets::dna;
 use crate::error::{BioError, BioResult};
 
-use memchr::memmem;
+use memchr::{memchr_iter, memmem};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DnaSeq {
@@ -48,21 +48,17 @@ impl DnaSeq {
     where
         N: IntoDnaNeedle<'a>,
     {
+        let hay = self.as_bytes();
         let needle = sub.into_needle()?;
 
         match needle {
-            Needle::Byte(b) => {
-                // Overlap doesn't matter for a single byte: every match is "overlapping" anyway.
-                Ok(memchr::memchr_iter(b, self.as_bytes()).count())
-            }
+            Needle::Byte(b) => Ok(count_single_byte(hay, b)),
             Needle::Bytes(pat) => {
-                // Match Biopython-style behavior for empty pattern:
                 // empty matches between every char + ends => len + 1
                 if pat.is_empty() {
-                    return Ok(self.as_bytes().len() + 1);
+                    return Ok(hay.len() + 1);
                 }
 
-                let hay = self.as_bytes();
                 let finder = memmem::Finder::new(pat);
 
                 let mut count = 0usize;
@@ -91,7 +87,7 @@ pub enum Needle<'a> {
     Byte(u8),
 }
 
-impl<'a> Needle<'a> {
+impl Needle<'_> {
     #[inline]
     fn is_empty_bytes(&self) -> bool {
         matches!(self, Needle::Bytes(b) if b.is_empty())
@@ -169,7 +165,7 @@ impl<'a> IntoDnaNeedle<'a> for usize {
 
 #[inline]
 fn count_single_byte(hay: &[u8], b: u8) -> usize {
-    hay.iter().filter(|&&x| x == b).count()
+    memchr_iter(b, hay).count()
 }
 
 fn count_subslice_nonoverlapping(hay: &[u8], needle: &[u8]) -> usize {

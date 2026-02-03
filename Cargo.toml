@@ -2,3 +2,6 @@
 [workspace]
 members = ["biorust-core", "biorust-py"]
 resolver = "2"
+
+[workspace.metadata]
+rustfmt = true

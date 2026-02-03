@@ -12,4 +12,4 @@ pub enum BioError {
     IntByteOutOfRange { val: i128 },
 }
 
-pub type BioResult<T> = Result<T, BioError>; 
+pub type BioResult<T> = Result<T, BioError>;

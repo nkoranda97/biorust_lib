@@ -1,6 +1,5 @@
 pub mod dna;
 pub mod protein;
-//pub mod translate;
 
 use bit_set::BitSet;
 use std::borrow::Borrow;

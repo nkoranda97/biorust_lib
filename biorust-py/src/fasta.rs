@@ -15,7 +15,10 @@ fn read_fasta(py: Python<'_>, path: &str) -> PyResult<PyObject> {
         BioError::FastaIo(io) => PyIOError::new_err(io.to_string()),
         other => PyValueError::new_err(other.to_string()),
     })?;
-    let out = DNARecordBatch { inner: batch };
+    let out = DNARecordBatch {
+        inner: batch,
+        skipped: Vec::new(),
+    };
     Ok(Py::new(py, out)?.to_object(py))
 }
 

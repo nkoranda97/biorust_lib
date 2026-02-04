@@ -17,6 +17,50 @@ pub enum BioError {
 
     #[error("fasta io error: {0}")]
     FastaIo(#[from] io::Error),
+
+    #[error("record batch length mismatch (ids={ids}, descs={descs}, seqs={seqs})")]
+    RecordBatchLenMismatch {
+        ids: usize,
+        descs: usize,
+        seqs: usize,
+    },
+
+    #[error("csv missing column '{name}' in {path}. headers: {headers:?}")]
+    CsvMissingColumn {
+        name: String,
+        headers: Vec<String>,
+        path: String,
+    },
+
+    #[error("csv column index {index} out of range (ncols={ncols}) in {path}")]
+    CsvColumnIndexOutOfRange {
+        index: usize,
+        ncols: usize,
+        path: String,
+    },
+
+    #[error("csv missing field at row {row} for column {column} in {path}")]
+    CsvMissingField {
+        row: usize,
+        column: String,
+        path: String,
+    },
+
+    #[error("csv invalid sequence at row {row} for column {column} in {path}: {source}")]
+    CsvInvalidSequence {
+        row: usize,
+        column: String,
+        path: String,
+        #[source]
+        source: Box<BioError>,
+    },
+
+    #[error("csv parse error in {path}: {source}")]
+    CsvParse {
+        path: String,
+        #[source]
+        source: csv::Error,
+    },
 }
 
 pub type BioResult<T> = Result<T, BioError>;

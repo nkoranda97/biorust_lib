@@ -4,8 +4,13 @@ from ._native import (
     DNARecord,
     DNARecordBatch,
     Protein,
+    ProteinRecord,
+    ProteinRecordBatch,
     ProteinBatch,
+    SkippedRecord,
     complement,
+    csv_columns,
+    read_csv,
     read_fasta,
 )
 
@@ -15,7 +20,12 @@ __all__ = [
     "DNARecord",
     "DNARecordBatch",
     "Protein",
+    "ProteinRecord",
+    "ProteinRecordBatch",
     "ProteinBatch",
+    "SkippedRecord",
     "complement",
+    "csv_columns",
+    "read_csv",
     "read_fasta",
 ]

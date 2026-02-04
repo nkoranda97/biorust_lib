@@ -1,3 +1,4 @@
+use crate::error::{BioError, BioResult};
 use crate::seq::batch::SeqBatch;
 use crate::seq::dna::DnaSeq;
 use crate::seq::record::SeqRecord;
@@ -11,14 +12,19 @@ pub struct RecordBatch<S: SeqBytes> {
 }
 
 impl<S: SeqBytes> RecordBatch<S> {
-    pub fn new(ids: Vec<Box<str>>, descs: Vec<Option<Box<str>>>, seqs: Vec<S>) -> Self {
-        debug_assert!(ids.len() == seqs.len());
-        debug_assert!(descs.len() == seqs.len());
-        Self {
+    pub fn new(ids: Vec<Box<str>>, descs: Vec<Option<Box<str>>>, seqs: Vec<S>) -> BioResult<Self> {
+        if ids.len() != seqs.len() || descs.len() != seqs.len() {
+            return Err(BioError::RecordBatchLenMismatch {
+                ids: ids.len(),
+                descs: descs.len(),
+                seqs: seqs.len(),
+            });
+        }
+        Ok(Self {
             ids,
             descs,
             seqs: SeqBatch::new(seqs),
-        }
+        })
     }
 
     pub fn from_records(records: Vec<SeqRecord<S>>) -> Self {

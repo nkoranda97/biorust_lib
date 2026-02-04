@@ -1,4 +1,4 @@
-from biorust import DNA, complement, DNABatch
+from biorust import DNA, complement, DNABatch, DNARecordBatch, read_fasta, read_csv
 
 seq1 = DNA("ATCG")
 seq2 = DNA(seq="ATCG")
@@ -33,3 +33,14 @@ batch.reverse_complements(inplace=True)
 seq = batch[0]
 print(batch[0])
 print(batch[0] == seq)
+
+seqs = read_fasta("/Users/nick/Desktop/fasta/sequences.fasta")
+
+seqs = read_csv(
+    path="/Users/nick/Library/CloudStorage/Box-Box/Zhang/projects/tf_cloning/Edited-FinalTF sheet.csv",
+    id_col="DNASU_Clone_ID",
+    seq_col="Sequence",
+    on_error="skip"
+)
+
+print(len(seqs))

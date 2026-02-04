@@ -12,6 +12,9 @@ pub enum BioError {
     #[error("integer byte out of range: {val} (expected 0..=255)")]
     IntByteOutOfRange { val: i128 },
 
+    #[error("invalid window size: {window}")]
+    InvalidWindow { window: usize },
+
     #[error("fasta format error at line {line}: {msg}")]
     FastaFormat { msg: &'static str, line: usize },
 

@@ -1,7 +1,7 @@
 #![allow(clippy::useless_conversion)]
 
 use pyo3::basic::CompareOp;
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyOverflowError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule, PyString, PyTuple};
 
@@ -43,16 +43,15 @@ impl Protein {
         self.as_bytes().len()
     }
 
-    fn __richcmp__(&self, other: &Bound<'_, PyAny>, op: CompareOp) -> PyResult<bool> {
-        let other = utils::extract_protein_bytes(other)?;
-
+    fn __richcmp__(&self, other: PyRef<'_, Protein>, op: CompareOp) -> PyResult<bool> {
+        let other = other.as_bytes();
         match op {
-            CompareOp::Eq => Ok(self.as_bytes() == other.as_slice()),
-            CompareOp::Ne => Ok(self.as_bytes() != other.as_slice()),
-            CompareOp::Lt => Ok(self.as_bytes() < other.as_slice()),
-            CompareOp::Le => Ok(self.as_bytes() <= other.as_slice()),
-            CompareOp::Gt => Ok(self.as_bytes() > other.as_slice()),
-            CompareOp::Ge => Ok(self.as_bytes() >= other.as_slice()),
+            CompareOp::Eq => Ok(self.as_bytes() == other),
+            CompareOp::Ne => Ok(self.as_bytes() != other),
+            CompareOp::Lt => Ok(self.as_bytes() < other),
+            CompareOp::Le => Ok(self.as_bytes() <= other),
+            CompareOp::Gt => Ok(self.as_bytes() > other),
+            CompareOp::Ge => Ok(self.as_bytes() >= other),
         }
     }
 
@@ -77,34 +76,17 @@ impl Protein {
         seq_shared::seq_getitem(self.as_bytes(), index, make)
     }
 
-    fn __radd__(&self, seq: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let make = |out: Vec<u8>| -> PyResult<Self> {
-            let inner = ProteinSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
-            Ok(Self { inner })
-        };
-
-        seq_shared::seq_radd(seq, self.as_bytes(), utils::extract_protein_bytes, make)
+    fn __add__(&self, other: PyRef<'_, Protein>) -> PyResult<Self> {
+        let inner = concat_protein_bytes(self.as_bytes(), other.as_bytes())?;
+        Ok(Self { inner })
     }
 
-    fn __add__(&self, seq: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let make = |out: Vec<u8>| -> PyResult<Self> {
-            let inner = ProteinSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
-            Ok(Self { inner })
-        };
-
-        seq_shared::seq_add(self.as_bytes(), seq, utils::extract_protein_bytes, make)
+    fn __mul__(&self, num: isize) -> PyResult<Self> {
+        let inner = repeat_protein_bytes(self.as_bytes(), num)?;
+        Ok(Self { inner })
     }
 
-    fn __mul__(&self, num: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let make = |out: Vec<u8>| -> PyResult<Self> {
-            let inner = ProteinSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
-            Ok(Self { inner })
-        };
-
-        seq_shared::seq_mul(self.as_bytes(), num, make)
-    }
-
-    fn __rmul__(&self, num: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn __rmul__(&self, num: isize) -> PyResult<Self> {
         self.__mul__(num)
     }
 
@@ -387,6 +369,109 @@ impl Protein {
             None => Err(PyValueError::new_err("subsection not found")),
         }
     }
+
+    fn reverse(&self) -> Self {
+        Self {
+            inner: self.inner.reverse(),
+        }
+    }
+
+    fn counts(&self) -> Vec<(String, u32)> {
+        let counts = self.inner.counts();
+        counts
+            .iter()
+            .enumerate()
+            .filter_map(|(b, &count)| {
+                if count == 0 {
+                    None
+                } else {
+                    Some(((b as u8 as char).to_string(), count))
+                }
+            })
+            .collect()
+    }
+
+    fn frequencies(&self) -> Vec<(String, f64)> {
+        let freq = self.inner.frequencies();
+        freq.iter()
+            .enumerate()
+            .filter_map(|(b, &val)| {
+                if val == 0.0 {
+                    None
+                } else {
+                    Some(((b as u8 as char).to_string(), val))
+                }
+            })
+            .collect()
+    }
+
+    fn aa_counts_20(&self) -> Vec<(String, u32)> {
+        let counts = self.inner.aa_counts_20();
+        let letters = b"ARNDCEQGHILKMFPSTWYV";
+        letters
+            .iter()
+            .enumerate()
+            .map(|(i, &b)| ((b as char).to_string(), counts[i]))
+            .collect()
+    }
+
+    fn aa_frequencies_20(&self) -> Vec<(String, f64)> {
+        let freq = self.inner.aa_frequencies_20();
+        let letters = b"ARNDCEQGHILKMFPSTWYV";
+        letters
+            .iter()
+            .enumerate()
+            .map(|(i, &b)| ((b as char).to_string(), freq[i]))
+            .collect()
+    }
+
+    fn shannon_entropy(&self) -> f64 {
+        self.inner.shannon_entropy()
+    }
+
+    fn molecular_weight(&self) -> PyResult<f64> {
+        self.inner
+            .molecular_weight()
+            .map_err(|e| PyValueError::new_err(e.to_string()))
+    }
+
+    fn hydrophobicity(&self) -> PyResult<f64> {
+        self.inner
+            .hydrophobicity()
+            .map_err(|e| PyValueError::new_err(e.to_string()))
+    }
+
+    fn hydrophobicity_profile(&self, window: usize) -> PyResult<Vec<f64>> {
+        self.inner
+            .hydrophobicity_profile(window)
+            .map_err(|e| PyValueError::new_err(e.to_string()))
+    }
+
+    fn net_charge(&self, ph: f64) -> PyResult<f64> {
+        self.inner
+            .net_charge(ph)
+            .map_err(|e| PyValueError::new_err(e.to_string()))
+    }
+
+    fn isoelectric_point(&self) -> PyResult<f64> {
+        self.inner
+            .isoelectric_point()
+            .map_err(|e| PyValueError::new_err(e.to_string()))
+    }
+
+    fn validate_strict_20(&self) -> PyResult<()> {
+        self.inner
+            .validate_strict_20()
+            .map_err(|e| PyValueError::new_err(e.to_string()))
+    }
+
+    fn has_ambiguous(&self) -> bool {
+        self.inner.has_ambiguous()
+    }
+
+    fn unknown_positions(&self) -> Vec<usize> {
+        self.inner.unknown_positions()
+    }
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -400,4 +485,28 @@ fn protein_needle_bytes<'a>(needle: &'a PyProteinNeedle<'a>) -> seq_shared::Need
         PyProteinNeedle::Bytes(bytes) => seq_shared::NeedleBytes::Bytes(bytes.as_slice()),
         PyProteinNeedle::Byte(b) => seq_shared::NeedleBytes::Byte(*b),
     }
+}
+
+fn concat_protein_bytes(left: &[u8], right: &[u8]) -> PyResult<ProteinSeq> {
+    let mut out = Vec::with_capacity(left.len() + right.len());
+    out.extend_from_slice(left);
+    out.extend_from_slice(right);
+    ProteinSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
+fn repeat_protein_bytes(bytes: &[u8], n: isize) -> PyResult<ProteinSeq> {
+    if n <= 0 || bytes.is_empty() {
+        return ProteinSeq::new(Vec::new()).map_err(|e| PyValueError::new_err(e.to_string()));
+    }
+
+    let n = n as usize;
+    let total = bytes
+        .len()
+        .checked_mul(n)
+        .ok_or_else(|| PyOverflowError::new_err("repeat count causes overflow"))?;
+    let mut out = Vec::with_capacity(total);
+    for _ in 0..n {
+        out.extend_from_slice(bytes);
+    }
+    ProteinSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))
 }

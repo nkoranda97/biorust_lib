@@ -61,65 +61,6 @@ where
     make(vec![bytes[i as usize]])
 }
 
-pub fn seq_radd<T, F>(
-    left: &Bound<'_, PyAny>,
-    right: &[u8],
-    extract_bytes: impl Fn(&Bound<'_, PyAny>) -> PyResult<Vec<u8>>,
-    make: F,
-) -> PyResult<T>
-where
-    F: Fn(Vec<u8>) -> PyResult<T>,
-{
-    let mut out = extract_bytes(left)?;
-    out.extend_from_slice(right);
-    make(out)
-}
-
-pub fn seq_add<T, F>(
-    left: &[u8],
-    right: &Bound<'_, PyAny>,
-    extract_bytes: impl Fn(&Bound<'_, PyAny>) -> PyResult<Vec<u8>>,
-    make: F,
-) -> PyResult<T>
-where
-    F: Fn(Vec<u8>) -> PyResult<T>,
-{
-    let right = extract_bytes(right)?;
-
-    let mut out = Vec::with_capacity(left.len() + right.len());
-    out.extend_from_slice(left);
-    out.extend_from_slice(&right);
-
-    make(out)
-}
-
-pub fn seq_mul<T, F>(bytes: &[u8], num: &Bound<'_, PyAny>, make: F) -> PyResult<T>
-where
-    F: Fn(Vec<u8>) -> PyResult<T>,
-{
-    let n: isize = num
-        .extract()
-        .map_err(|_| PyTypeError::new_err("num must be int"))?;
-
-    if n <= 0 {
-        return make(Vec::new());
-    }
-
-    let n: usize = n as usize;
-
-    let total_len = bytes
-        .len()
-        .checked_mul(n)
-        .ok_or_else(|| PyValueError::new_err("resulting sequence is too large"))?;
-
-    let mut out = Vec::with_capacity(total_len);
-    for _ in 0..n {
-        out.extend_from_slice(bytes);
-    }
-
-    make(out)
-}
-
 pub enum NeedleBytes<'a> {
     Bytes(&'a [u8]),
     Byte(u8),

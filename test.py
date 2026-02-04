@@ -40,7 +40,5 @@ seqs = read_csv(
     path="/Users/nick/Library/CloudStorage/Box-Box/Zhang/projects/tf_cloning/Edited-FinalTF sheet.csv",
     id_col="DNASU_Clone_ID",
     seq_col="Sequence",
-    on_error="skip"
+    on_error="skip",
 )
-
-print(len(seqs))

@@ -18,19 +18,6 @@ pub fn extract_dna_bytes<'py>(obj: &Bound<'py, PyAny>) -> PyResult<Vec<u8>> {
         .map_err(|_| PyTypeError::new_err("expected DNA, str, or bytes-like object"))
 }
 
-pub fn extract_protein_bytes<'py>(obj: &Bound<'py, PyAny>) -> PyResult<Vec<u8>> {
-    if let Ok(protein) = obj.extract::<PyRef<'py, Protein>>() {
-        return Ok(protein.as_bytes().to_vec());
-    }
-
-    if let Ok(s) = obj.downcast::<PyString>() {
-        return Ok(s.to_str()?.as_bytes().to_vec());
-    }
-
-    obj.extract::<Vec<u8>>()
-        .map_err(|_| PyTypeError::new_err("expected Protein, str, or bytes-like object"))
-}
-
 pub enum PyDnaNeedle<'a> {
     Bytes(Vec<u8>),
     Byte(u8),

@@ -1,7 +1,7 @@
 #![allow(clippy::useless_conversion)]
 
 use pyo3::basic::CompareOp;
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyOverflowError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule, PyString, PyTuple};
 
@@ -62,16 +62,15 @@ impl DNA {
         self.as_bytes().len()
     }
 
-    fn __richcmp__(&self, other: &Bound<'_, PyAny>, op: CompareOp) -> PyResult<bool> {
-        let other = utils::extract_dna_bytes(other)?;
-
+    fn __richcmp__(&self, other: PyRef<'_, DNA>, op: CompareOp) -> PyResult<bool> {
+        let other = other.as_bytes();
         match op {
-            CompareOp::Eq => Ok(self.as_bytes() == other.as_slice()),
-            CompareOp::Ne => Ok(self.as_bytes() != other.as_slice()),
-            CompareOp::Lt => Ok(self.as_bytes() < other.as_slice()),
-            CompareOp::Le => Ok(self.as_bytes() <= other.as_slice()),
-            CompareOp::Gt => Ok(self.as_bytes() > other.as_slice()),
-            CompareOp::Ge => Ok(self.as_bytes() >= other.as_slice()),
+            CompareOp::Eq => Ok(self.as_bytes() == other),
+            CompareOp::Ne => Ok(self.as_bytes() != other),
+            CompareOp::Lt => Ok(self.as_bytes() < other),
+            CompareOp::Le => Ok(self.as_bytes() <= other),
+            CompareOp::Gt => Ok(self.as_bytes() > other),
+            CompareOp::Ge => Ok(self.as_bytes() >= other),
         }
     }
 
@@ -96,34 +95,17 @@ impl DNA {
         seq_shared::seq_getitem(self.as_bytes(), index, make)
     }
 
-    fn __radd__(&self, seq: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let make = |out: Vec<u8>| -> PyResult<Self> {
-            let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
-            Ok(Self { inner })
-        };
-
-        seq_shared::seq_radd(seq, self.as_bytes(), utils::extract_dna_bytes, make)
+    fn __add__(&self, other: PyRef<'_, DNA>) -> PyResult<Self> {
+        let inner = concat_dna_bytes(self.as_bytes(), other.as_bytes())?;
+        Ok(Self { inner })
     }
 
-    fn __add__(&self, seq: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let make = |out: Vec<u8>| -> PyResult<Self> {
-            let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
-            Ok(Self { inner })
-        };
-
-        seq_shared::seq_add(self.as_bytes(), seq, utils::extract_dna_bytes, make)
+    fn __mul__(&self, num: isize) -> PyResult<Self> {
+        let inner = repeat_dna_bytes(self.as_bytes(), num)?;
+        Ok(Self { inner })
     }
 
-    fn __mul__(&self, num: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let make = |out: Vec<u8>| -> PyResult<Self> {
-            let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
-            Ok(Self { inner })
-        };
-
-        seq_shared::seq_mul(self.as_bytes(), num, make)
-    }
-
-    fn __rmul__(&self, num: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn __rmul__(&self, num: isize) -> PyResult<Self> {
         self.__mul__(num)
     }
 
@@ -435,4 +417,28 @@ fn dna_needle_bytes<'a>(needle: &'a PyDnaNeedle<'a>) -> seq_shared::NeedleBytes<
         PyDnaNeedle::Bytes(bytes) => seq_shared::NeedleBytes::Bytes(bytes.as_slice()),
         PyDnaNeedle::Byte(b) => seq_shared::NeedleBytes::Byte(*b),
     }
+}
+
+fn concat_dna_bytes(left: &[u8], right: &[u8]) -> PyResult<DnaSeq> {
+    let mut out = Vec::with_capacity(left.len() + right.len());
+    out.extend_from_slice(left);
+    out.extend_from_slice(right);
+    DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
+fn repeat_dna_bytes(bytes: &[u8], n: isize) -> PyResult<DnaSeq> {
+    if n <= 0 || bytes.is_empty() {
+        return DnaSeq::new(Vec::new()).map_err(|e| PyValueError::new_err(e.to_string()));
+    }
+
+    let n = n as usize;
+    let total = bytes
+        .len()
+        .checked_mul(n)
+        .ok_or_else(|| PyOverflowError::new_err("repeat count causes overflow"))?;
+    let mut out = Vec::with_capacity(total);
+    for _ in 0..n {
+        out.extend_from_slice(bytes);
+    }
+    DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))
 }

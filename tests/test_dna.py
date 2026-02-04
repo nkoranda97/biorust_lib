@@ -9,7 +9,7 @@ def test_construction_and_basic_ops():
     seq3 = DNA(seq="ATC")
 
     # addition
-    assert str(seq1 + "ATTT") == "ATCGATTT"
+    assert str(seq1 + DNA("ATTT")) == "ATCGATTT"
     assert str(seq1 + seq2) == "ATCGATCG"
 
     # equality + ordering
@@ -41,6 +41,30 @@ def test_construction_and_basic_ops():
     assert str(seq3) == "ATCATCGATCG"
 
     assert str(2 * seq3) == "ATCATCGATCGATCATCGATCG"
+
+
+def test_strict_operators():
+    with pytest.raises(TypeError):
+        DNA("AC") + "TT"
+
+    with pytest.raises(TypeError):
+        "TT" + DNA("AC")
+
+    assert (DNA("AC") == "AC") is False
+
+
+def test_iadd_imul_immutability():
+    a = DNA("AC")
+    b = a
+    b += DNA("TT")
+    assert str(a) == "AC"
+    assert str(b) == "ACTT"
+
+    a = DNA("AC")
+    b = a
+    b *= 3
+    assert str(a) == "AC"
+    assert str(b) == "ACACAC"
 
 
 def test_count_and_count_overlap():

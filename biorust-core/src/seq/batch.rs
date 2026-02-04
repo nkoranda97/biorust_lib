@@ -131,6 +131,10 @@ where
             *seq = seq.reverse_complement();
         }
     }
+
+    pub fn reverse_complements_inplace(&mut self) {
+        self.reverse_complements_in_place();
+    }
 }
 
 #[cfg(test)]

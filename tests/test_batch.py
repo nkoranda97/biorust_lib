@@ -24,6 +24,13 @@ def test_dna_batch_reverse_complements():
     assert [str(s) for s in out.to_list()] == ["GCAT", "CGTT"]
 
 
+def test_dna_batch_reverse_complements_inplace():
+    batch = DNABatch([DNA("ATGC"), DNA("AACG")])
+    out = batch.reverse_complements(inplace=True)
+    assert out is None
+    assert [str(s) for s in batch.to_list()] == ["GCAT", "CGTT"]
+
+
 def test_dna_batch_mutations():
     batch = DNABatch([DNA("A"), DNA("C")])
 

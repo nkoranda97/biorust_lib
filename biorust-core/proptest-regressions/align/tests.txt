@@ -1,0 +1,11 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc ac29de9897a5a1688d9abbce1b92ab4023165f9e8d3e3adf344d40f2d3a0fbdc # shrinks to q = [65], t = [65, 65]
+cc eaab936d9b3657e2dc37b962980b10453c47595fe0b4a631939d1cdbb591cd57 # shrinks to q = [65, 67, 67, 67, 84, 71, 65, 65, 65, 65, 67, 65, 65, 71, 71, 65], t = [67, 67, 84, 65, 65, 67, 65]
+cc 7cf3dd18316ef7e200cbf9932436220322f888e080424f0e72eb5b73e9ff014e # shrinks to q = [65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 67, 67, 65, 67, 84, 67, 67, 65, 65, 84, 71, 71, 65, 67, 84, 65, 65], t = [65, 65, 65, 65, 67, 65, 84, 67, 67, 71, 65, 67, 84, 65, 65, 65, 65, 65, 65, 65, 71, 71]
+cc 4d0f57728577588277a28e49d7ff0d461cfe60751fa21af8c7ba7aaecf6687d3 # shrinks to q = [67, 71, 84, 84, 65, 67, 67, 71, 71, 65, 65, 71], t = [65, 71, 65, 84, 67, 67, 67, 65, 65, 71]
+cc 163e82055537569c5803c8019d950f81fb4d3262eb52cfe397636ad78205c7f8 # shrinks to q = [65], t = [65, 65, 65, 65], match_score = 1, mismatch = -2, gap_open = -2, gap_ext = -3

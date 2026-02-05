@@ -29,3 +29,5 @@ src/biorust/_native*.dll
 
 .pytest_cache/
 .ruff_cache/
+
+.claude/

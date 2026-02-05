@@ -1,6 +1,50 @@
 from __future__ import annotations
 from typing import Iterable, Literal, overload
 
+class Scoring:
+    def __init__(
+        self,
+        match_score: int | float = ...,
+        mismatch_score: int | float = ...,
+        gap_open: int | float = ...,
+        gap_extend: int | float = ...,
+        matrix: list[int] | str | None = ...,
+        alphabet_size: int | None = ...,
+        end_gap: bool = ...,
+        end_gap_open: float | None = ...,
+        end_gap_extend: float | None = ...,
+        use_matrix: bool = ...,
+    ) -> None: ...
+    @staticmethod
+    def with_matrix(
+        matrix: list[int],
+        alphabet_size: int,
+        gap_open: int | float = ...,
+        gap_extend: int | float = ...,
+        end_gap: bool = ...,
+        end_gap_open: float | None = ...,
+        end_gap_extend: float | None = ...,
+    ) -> Scoring: ...
+    @staticmethod
+    def matrix_names() -> list[str]: ...
+
+class AlignmentResult:
+    @property
+    def score(self) -> float: ...
+    @property
+    def query_end(self) -> int: ...
+    @property
+    def target_end(self) -> int: ...
+    @property
+    def query_start(self) -> int | None: ...
+    @property
+    def target_start(self) -> int | None: ...
+    @property
+    def cigar(self) -> list[tuple[str, int]] | None: ...
+    def aligned_strings(
+        self, query: DNA | Protein, target: DNA | Protein
+    ) -> tuple[str, str, str]: ...
+
 class DNA:
     def __init__(self, seq: str | bytes | bytearray | memoryview) -> None: ...
     def reverse_complement(self) -> DNA: ...
@@ -382,3 +426,15 @@ def read_csv(
     on_error: str = ...,
 ) -> DNARecordBatch | ProteinRecordBatch: ...
 def csv_columns(path: str) -> list[str]: ...
+def align_local(
+    query: DNA | Protein,
+    target: DNA | Protein,
+    scoring: Scoring,
+    traceback: bool = ...,
+) -> AlignmentResult: ...
+def align_global(
+    query: DNA | Protein,
+    target: DNA | Protein,
+    scoring: Scoring,
+    traceback: bool = ...,
+) -> AlignmentResult: ...

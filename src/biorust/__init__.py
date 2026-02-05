@@ -12,6 +12,10 @@ from ._native import (
     csv_columns,
     read_csv,
     read_fasta,
+    Scoring,
+    AlignmentResult,
+    align_local,
+    align_global,
 )
 
 __all__ = [
@@ -28,4 +32,8 @@ __all__ = [
     "csv_columns",
     "read_csv",
     "read_fasta",
+    "Scoring",
+    "AlignmentResult",
+    "align_local",
+    "align_global",
 ]

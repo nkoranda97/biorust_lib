@@ -1,5 +1,6 @@
 use pyo3::prelude::*;
 
+mod align;
 mod batch;
 mod csv;
 mod dna;
@@ -18,6 +19,7 @@ fn _native(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     dna::register(m)?;
     dna_record::register(m)?;
     dna_record_batch::register(m)?;
+    align::register(m)?;
     protein_record::register(m)?;
     protein_record_batch::register(m)?;
     report::register(m)?;

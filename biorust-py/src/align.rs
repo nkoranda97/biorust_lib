@@ -222,6 +222,8 @@ impl Scoring {
 #[pyclass(frozen)]
 pub struct AlignmentResult {
     inner: core_align::AlignmentResult,
+    query: Vec<u8>,
+    target: Vec<u8>,
 }
 
 fn cigar_to_py(cigar: &core_align::Cigar) -> Vec<(String, usize)> {
@@ -271,11 +273,27 @@ impl AlignmentResult {
         self.inner.cigar.as_ref().map(cigar_to_py)
     }
 
-    fn aligned_strings(
-        &self,
-        query: &Bound<'_, PyAny>,
-        target: &Bound<'_, PyAny>,
-    ) -> PyResult<(String, String, String)> {
+    fn aligned_strings(&self) -> PyResult<(String, String)> {
+        let (q_out, _mid_out, t_out) = self.alignment_parts()?;
+        Ok((q_out, t_out))
+    }
+
+    fn alignment_diagram(&self) -> PyResult<String> {
+        let (q_out, mid_out, t_out) = self.alignment_parts()?;
+        Ok(format!("{q_out}\n{mid_out}\n{t_out}"))
+    }
+
+    fn __repr__(&self) -> String {
+        let cigar = self.inner.cigar.as_ref().map(|c| c.ops.len()).unwrap_or(0);
+        format!(
+            "AlignmentResult(score={}, query_end={}, target_end={}, cigar_ops={})",
+            self.inner.score, self.inner.query_end, self.inner.target_end, cigar
+        )
+    }
+}
+
+impl AlignmentResult {
+    fn alignment_parts(&self) -> PyResult<(String, String, String)> {
         let cigar = self
             .inner
             .cigar
@@ -290,17 +308,8 @@ impl AlignmentResult {
             .target_start
             .ok_or_else(|| PyValueError::new_err("target_start is missing"))?;
 
-        let q = extract_seq(query)?;
-        let t = extract_seq(target)?;
-        let (q_bytes, t_bytes) = match (q, t) {
-            (SeqKind::Dna(q), SeqKind::Dna(t)) => (q, t),
-            (SeqKind::Protein(q), SeqKind::Protein(t)) => (q, t),
-            _ => {
-                return Err(PyValueError::new_err(
-                    "query and target must be the same sequence type",
-                ))
-            }
-        };
+        let q_bytes = &self.query;
+        let t_bytes = &self.target;
 
         let mut q_idx = q_start;
         let mut t_idx = t_start;
@@ -353,14 +362,6 @@ impl AlignmentResult {
 
         Ok((q_out, mid_out, t_out))
     }
-
-    fn __repr__(&self) -> String {
-        let cigar = self.inner.cigar.as_ref().map(|c| c.ops.len()).unwrap_or(0);
-        format!(
-            "AlignmentResult(score={}, query_end={}, target_end={}, cigar_ops={})",
-            self.inner.score, self.inner.query_end, self.inner.target_end, cigar
-        )
-    }
 }
 
 enum SeqKind {
@@ -390,16 +391,20 @@ fn align_internal(
     let q = extract_seq(query)?;
     let t = extract_seq(target)?;
 
-    let (q_enc, t_enc, is_dna) = match (q, t) {
+    let (q_enc, t_enc, is_dna, q_bytes, t_bytes) = match (q, t) {
         (SeqKind::Dna(q), SeqKind::Dna(t)) => (
             core_align::encode_dna(&q).map_err(|e| PyValueError::new_err(e.to_string()))?,
             core_align::encode_dna(&t).map_err(|e| PyValueError::new_err(e.to_string()))?,
             true,
+            q,
+            t,
         ),
         (SeqKind::Protein(q), SeqKind::Protein(t)) => (
             core_align::encode_protein(&q).map_err(|e| PyValueError::new_err(e.to_string()))?,
             core_align::encode_protein(&t).map_err(|e| PyValueError::new_err(e.to_string()))?,
             false,
+            q,
+            t,
         ),
         _ => {
             return Err(PyValueError::new_err(
@@ -450,7 +455,11 @@ fn align_internal(
         core_align::align_global(&q_enc, &t_enc, scoring_ref, traceback)
     };
 
-    Ok(AlignmentResult { inner })
+    Ok(AlignmentResult {
+        inner,
+        query: q_bytes,
+        target: t_bytes,
+    })
 }
 
 #[pyfunction]

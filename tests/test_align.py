@@ -12,10 +12,10 @@ def test_align_local_dna_traceback():
     assert res.score == 20.0
     assert res.cigar is not None
     assert res.cigar == [("M", 4)]
-    q_str, mid, t_str = res.aligned_strings(q, t)
+    q_str, t_str = res.aligned_strings()
     assert q_str == "ACGT"
     assert t_str == "ACGT"
-    assert mid == "||||"
+    assert res.alignment_diagram() == "ACGT\n||||\nACGT"
 
 
 def test_align_global_dna_traceback():
@@ -26,10 +26,11 @@ def test_align_global_dna_traceback():
     assert res.score == 13.0
     assert res.cigar is not None
     assert sum(n for _, n in res.cigar) == 4
-    q_str, mid, t_str = res.aligned_strings(q, t)
+    q_str, t_str = res.aligned_strings()
     assert q_str.replace("-", "") == "ACGT"
     assert t_str.replace("-", "") == "ACG"
-    assert len(q_str) == len(t_str) == len(mid)
+    assert len(q_str) == len(t_str)
+    assert len(res.alignment_diagram().splitlines()) == 3
 
 
 def test_align_type_mismatch():

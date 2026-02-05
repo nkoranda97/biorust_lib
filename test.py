@@ -62,8 +62,6 @@ expected2 = "------CTGTCTCCTGCCGACAAGACCAACGTCAAGGCCGCCTGGGGTAAG--------"
 
 scoring = Scoring(gap_open=-10.0, gap_extend=-0.5)
 result = align_global(seq1, seq2, scoring, traceback=True)
-results1, match, results2 = result.aligned_strings(seq1, seq2)
+results1, results2 = result.aligned_strings()
 
-print(results1)
-print(match)
-print(results2)
+print(result.alignment_diagram())

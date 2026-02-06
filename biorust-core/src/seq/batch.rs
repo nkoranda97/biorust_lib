@@ -13,10 +13,6 @@ impl<S: SeqBytes> SeqBatch<S> {
         Self { seqs }
     }
 
-    pub fn from_vec(seqs: Vec<S>) -> Self {
-        Self { seqs }
-    }
-
     pub fn as_slice(&self) -> &[S] {
         &self.seqs
     }
@@ -130,10 +126,6 @@ where
         for seq in &mut self.seqs {
             *seq = seq.reverse_complement();
         }
-    }
-
-    pub fn reverse_complements_inplace(&mut self) {
-        self.reverse_complements_in_place();
     }
 }
 

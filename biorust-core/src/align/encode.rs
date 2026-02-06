@@ -3,11 +3,19 @@ use std::sync::LazyLock;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EncodedSeq {
-    pub codes: Vec<u8>,
-    pub alphabet_size: usize,
+    pub(crate) codes: Vec<u8>,
+    pub(crate) alphabet_size: usize,
 }
 
 impl EncodedSeq {
+    pub fn codes(&self) -> &[u8] {
+        &self.codes
+    }
+
+    pub fn alphabet_size(&self) -> usize {
+        self.alphabet_size
+    }
+
     pub fn len(&self) -> usize {
         self.codes.len()
     }

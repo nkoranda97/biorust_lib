@@ -18,10 +18,18 @@ pub enum CigarOp {
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Cigar {
-    pub ops: Vec<(CigarOp, usize)>,
+    pub(crate) ops: Vec<(CigarOp, usize)>,
 }
 
 impl Cigar {
+    pub fn ops(&self) -> &[(CigarOp, usize)] {
+        &self.ops
+    }
+
+    pub fn into_ops(self) -> Vec<(CigarOp, usize)> {
+        self.ops
+    }
+
     pub fn push(&mut self, op: CigarOp, len: usize) {
         if len == 0 {
             return;
@@ -44,6 +52,20 @@ impl Cigar {
     }
 }
 
+impl std::fmt::Display for Cigar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for &(op, len) in &self.ops {
+            let ch = match op {
+                CigarOp::Match => 'M',
+                CigarOp::Ins => 'I',
+                CigarOp::Del => 'D',
+            };
+            write!(f, "{len}{ch}")?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct AlignmentResult {
     pub score: f32,
@@ -56,22 +78,71 @@ pub struct AlignmentResult {
 
 #[derive(Clone, Debug)]
 pub struct Scoring {
-    pub match_score: i16,
-    pub mismatch_score: i16,
-    pub gap_open: f32,
-    pub gap_extend: f32,
-    pub matrix: Option<Vec<i16>>,
-    pub alphabet_size: Option<usize>,
-    pub end_gap: bool,
-    pub end_gap_open: f32,
-    pub end_gap_extend: f32,
+    pub(crate) match_score: i16,
+    pub(crate) mismatch_score: i16,
+    pub(crate) gap_open: f32,
+    pub(crate) gap_extend: f32,
+    pub(crate) matrix: Option<Vec<i16>>,
+    pub(crate) alphabet_size: Option<usize>,
+    pub(crate) end_gap: bool,
+    pub(crate) end_gap_open: f32,
+    pub(crate) end_gap_extend: f32,
 }
 
 impl Scoring {
-    pub fn simple(match_score: i16, mismatch_score: i16, gap_open: f32, gap_extend: f32) -> Self {
-        assert!(gap_open <= 0.0, "gap_open must be <= 0");
-        assert!(gap_extend <= 0.0, "gap_extend must be <= 0");
-        Self {
+    pub fn gap_open(&self) -> f32 {
+        self.gap_open
+    }
+
+    pub fn gap_extend(&self) -> f32 {
+        self.gap_extend
+    }
+
+    pub fn end_gap(&self) -> bool {
+        self.end_gap
+    }
+
+    pub fn end_gap_open(&self) -> f32 {
+        self.end_gap_open
+    }
+
+    pub fn end_gap_extend(&self) -> f32 {
+        self.end_gap_extend
+    }
+
+    pub fn match_score(&self) -> i16 {
+        self.match_score
+    }
+
+    pub fn mismatch_score(&self) -> i16 {
+        self.mismatch_score
+    }
+
+    pub fn matrix(&self) -> Option<&[i16]> {
+        self.matrix.as_deref()
+    }
+
+    pub fn alphabet_size_opt(&self) -> Option<usize> {
+        self.alphabet_size
+    }
+
+    pub fn simple(
+        match_score: i16,
+        mismatch_score: i16,
+        gap_open: f32,
+        gap_extend: f32,
+    ) -> crate::error::BioResult<Self> {
+        if gap_open > 0.0 {
+            return Err(crate::error::BioError::InvalidScoring {
+                msg: format!("gap_open must be <= 0, got {gap_open}"),
+            });
+        }
+        if gap_extend > 0.0 {
+            return Err(crate::error::BioError::InvalidScoring {
+                msg: format!("gap_extend must be <= 0, got {gap_extend}"),
+            });
+        }
+        Ok(Self {
             match_score,
             mismatch_score,
             gap_open,
@@ -81,7 +152,7 @@ impl Scoring {
             end_gap: false,
             end_gap_open: gap_open,
             end_gap_extend: gap_extend,
-        }
+        })
     }
 
     pub fn with_matrix(
@@ -89,10 +160,32 @@ impl Scoring {
         alphabet_size: usize,
         gap_open: f32,
         gap_extend: f32,
-    ) -> Self {
-        assert!(gap_open <= 0.0, "gap_open must be <= 0");
-        assert!(gap_extend <= 0.0, "gap_extend must be <= 0");
-        Self {
+    ) -> crate::error::BioResult<Self> {
+        if gap_open > 0.0 {
+            return Err(crate::error::BioError::InvalidScoring {
+                msg: format!("gap_open must be <= 0, got {gap_open}"),
+            });
+        }
+        if gap_extend > 0.0 {
+            return Err(crate::error::BioError::InvalidScoring {
+                msg: format!("gap_extend must be <= 0, got {gap_extend}"),
+            });
+        }
+        if alphabet_size == 0 {
+            return Err(crate::error::BioError::InvalidScoring {
+                msg: "alphabet_size must be > 0".into(),
+            });
+        }
+        if matrix.len() != alphabet_size * alphabet_size {
+            return Err(crate::error::BioError::InvalidScoring {
+                msg: format!(
+                    "matrix length {} doesn't match alphabet_size² {}",
+                    matrix.len(),
+                    alphabet_size * alphabet_size
+                ),
+            });
+        }
+        Ok(Self {
             match_score: 0,
             mismatch_score: 0,
             gap_open,
@@ -102,7 +195,7 @@ impl Scoring {
             end_gap: false,
             end_gap_open: gap_open,
             end_gap_extend: gap_extend,
-        }
+        })
     }
 
     pub fn with_end_gaps(mut self, end_gap_open: f32, end_gap_extend: f32) -> Self {

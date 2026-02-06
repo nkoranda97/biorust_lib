@@ -15,6 +15,9 @@ pub enum BioError {
     #[error("invalid window size: {window}")]
     InvalidWindow { window: usize },
 
+    #[error("invalid scoring parameters: {msg}")]
+    InvalidScoring { msg: String },
+
     #[error("fasta format error at line {line}: {msg}")]
     FastaFormat { msg: &'static str, line: usize },
 

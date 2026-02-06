@@ -4,15 +4,18 @@ use crate::seq::bytes::{self, IntoNeedle, Needle};
 use crate::seq::traits::SeqBytes;
 use std::sync::LazyLock;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ProteinSeq {
     bytes: Vec<u8>,
 }
 
 impl ProteinSeq {
     pub fn new(bytes: Vec<u8>) -> BioResult<Self> {
-        if !protein::iupac_alphabet().is_word(bytes.as_slice()) {
-            return Err(BioError::InvalidChar { ch: '?', pos: 0 });
+        let alphabet = protein::iupac_alphabet();
+        for (pos, &b) in bytes.iter().enumerate() {
+            if !alphabet.symbols.contains(b as usize) {
+                return Err(BioError::InvalidChar { ch: b as char, pos });
+            }
         }
         Ok(Self { bytes })
     }
@@ -35,9 +38,10 @@ impl ProteinSeq {
     }
 
     pub fn to_string(&self) -> BioResult<String> {
-        std::str::from_utf8(self.as_bytes())
-            .map(|s| s.to_string())
-            .map_err(|_| BioError::InvalidChar { ch: '?', pos: 0 })
+        // All valid IUPAC protein bytes are valid UTF-8, so this should never fail
+        Ok(std::str::from_utf8(self.as_bytes())
+            .expect("validated protein sequence contains invalid UTF-8")
+            .to_string())
     }
 
     pub fn reverse(&self) -> Self {

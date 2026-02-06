@@ -198,10 +198,6 @@ impl DNABatch {
         };
         Ok(Py::new(py, out)?.to_object(py))
     }
-
-    fn reverse_complements_in_place(&mut self) {
-        self.inner.reverse_complements_in_place();
-    }
 }
 
 #[pymethods]

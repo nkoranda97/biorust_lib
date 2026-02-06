@@ -86,6 +86,20 @@ impl DNA {
         Ok(seq_shared::seq_repr(self.as_bytes(), "DNA"))
     }
 
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.inner.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn __iter__(slf: PyRef<'_, Self>) -> DNAIterator {
+        DNAIterator {
+            bytes: slf.as_bytes().to_vec(),
+            index: 0,
+        }
+    }
+
     fn __getitem__<'py>(&self, py: Python<'py>, index: &Bound<'py, PyAny>) -> PyResult<PyObject> {
         let make = |out: Vec<u8>| -> PyResult<PyObject> {
             let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -390,6 +404,29 @@ impl DNA {
     }
 }
 
+#[pyclass]
+struct DNAIterator {
+    bytes: Vec<u8>,
+    index: usize,
+}
+
+#[pymethods]
+impl DNAIterator {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self) -> Option<String> {
+        if self.index < self.bytes.len() {
+            let ch = self.bytes[self.index] as char;
+            self.index += 1;
+            Some(ch.to_string())
+        } else {
+            None
+        }
+    }
+}
+
 #[pyfunction]
 fn complement(seq: &Bound<'_, PyAny>) -> PyResult<DNA> {
     if let Ok(dna) = seq.extract::<PyRef<'_, DNA>>() {
@@ -407,6 +444,7 @@ fn complement(seq: &Bound<'_, PyAny>) -> PyResult<DNA> {
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DNA>()?;
+    m.add_class::<DNAIterator>()?;
     m.add_function(wrap_pyfunction!(complement, m)?)?;
     Ok(())
 }

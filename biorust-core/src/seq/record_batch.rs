@@ -110,8 +110,7 @@ impl RecordBatch<DnaSeq> {
         }
     }
 
-    pub fn reverse_complements_inplace(&mut self) {
-        let out = self.seqs.reverse_complements().into_vec();
-        self.seqs = SeqBatch::new(out);
+    pub fn reverse_complements_in_place(&mut self) {
+        self.seqs.reverse_complements_in_place();
     }
 }

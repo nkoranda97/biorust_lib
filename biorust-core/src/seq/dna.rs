@@ -6,7 +6,7 @@ use crate::seq::traits::SeqBytes;
 
 use std::sync::LazyLock;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DnaSeq {
     bytes: Vec<u8>,
 }
@@ -17,15 +17,31 @@ pub trait ReverseComplement: Sized {
 
 impl DnaSeq {
     pub fn new(bytes: Vec<u8>) -> BioResult<Self> {
-        if !dna::iupac_alphabet().is_word(bytes.as_slice()) {
-            // keep your placeholder error for now
-            return Err(BioError::InvalidChar { ch: '?', pos: 0 });
+        let alphabet = dna::iupac_alphabet();
+        for (pos, &b) in bytes.iter().enumerate() {
+            if !alphabet.symbols.contains(b as usize) {
+                return Err(BioError::InvalidChar { ch: b as char, pos });
+            }
         }
         Ok(Self { bytes })
     }
 
     pub fn as_bytes(&self) -> &[u8] {
         &self.bytes
+    }
+
+    pub fn len(&self) -> usize {
+        self.bytes.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.bytes.is_empty()
+    }
+
+    pub fn reverse(&self) -> Self {
+        let mut out = self.bytes.clone();
+        out.reverse();
+        Self { bytes: out }
     }
 
     pub fn reverse_complement(&self) -> Self {

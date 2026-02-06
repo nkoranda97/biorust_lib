@@ -145,7 +145,7 @@ impl DNARecordBatch {
     #[pyo3(signature = (inplace=false))]
     fn reverse_complements(&mut self, py: Python<'_>, inplace: bool) -> PyResult<PyObject> {
         if inplace {
-            self.inner.reverse_complements_inplace();
+            self.inner.reverse_complements_in_place();
             return Ok(py.None());
         }
 

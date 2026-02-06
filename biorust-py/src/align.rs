@@ -69,6 +69,7 @@ impl Scoring {
                     gap_open,
                     gap_extend,
                 )
+                .map_err(|e| PyValueError::new_err(e.to_string()))?
             } else if let Ok(matrix_vals) = matrix.extract::<Vec<i64>>() {
                 let alpha = alphabet_size.ok_or_else(|| {
                     PyValueError::new_err("alphabet_size is required when matrix is provided")
@@ -93,6 +94,7 @@ impl Scoring {
                     mtx.push(val);
                 }
                 core_align::Scoring::with_matrix(mtx, alpha, gap_open, gap_extend)
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?
             } else {
                 return Err(PyTypeError::new_err(
                     "matrix must be a list of ints or a known matrix name",
@@ -105,6 +107,7 @@ impl Scoring {
                 gap_open,
                 gap_extend,
             )
+            .map_err(|e| PyValueError::new_err(e.to_string()))?
         };
 
         if end_gap {
@@ -157,7 +160,8 @@ impl Scoring {
             None => gap_extend,
         };
         let mut scoring =
-            core_align::Scoring::with_matrix(mtx, alphabet_size, gap_open, gap_extend);
+            core_align::Scoring::with_matrix(mtx, alphabet_size, gap_open, gap_extend)
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
         if end_gap {
             scoring = scoring.with_end_gaps(end_gap_open, end_gap_extend);
         }
@@ -173,46 +177,46 @@ impl Scoring {
     }
 
     fn __repr__(&self) -> String {
-        if self.inner.matrix.is_some() {
-            if self.inner.end_gap {
+        if self.inner.matrix().is_some() {
+            if self.inner.end_gap() {
                 format!(
                     "Scoring(matrix=..., alphabet_size={}, gap_open={}, gap_extend={}, end_gap=true, end_gap_open={}, end_gap_extend={})",
                     self.inner
-                        .alphabet_size
+                        .alphabet_size_opt()
                         .expect("alphabet_size must be set when matrix is present"),
-                    self.inner.gap_open,
-                    self.inner.gap_extend,
-                    self.inner.end_gap_open,
-                    self.inner.end_gap_extend
+                    self.inner.gap_open(),
+                    self.inner.gap_extend(),
+                    self.inner.end_gap_open(),
+                    self.inner.end_gap_extend()
                 )
             } else {
                 format!(
                     "Scoring(matrix=..., alphabet_size={}, gap_open={}, gap_extend={})",
                     self.inner
-                        .alphabet_size
+                        .alphabet_size_opt()
                         .expect("alphabet_size must be set when matrix is present"),
-                    self.inner.gap_open,
-                    self.inner.gap_extend
+                    self.inner.gap_open(),
+                    self.inner.gap_extend()
                 )
             }
-        } else if self.inner.end_gap {
+        } else if self.inner.end_gap() {
             format!(
                 "Scoring(match_score={}, mismatch_score={}, gap_open={}, gap_extend={}, end_gap=true, end_gap_open={}, end_gap_extend={}, use_matrix={})",
-                self.inner.match_score,
-                self.inner.mismatch_score,
-                self.inner.gap_open,
-                self.inner.gap_extend,
-                self.inner.end_gap_open,
-                self.inner.end_gap_extend,
+                self.inner.match_score(),
+                self.inner.mismatch_score(),
+                self.inner.gap_open(),
+                self.inner.gap_extend(),
+                self.inner.end_gap_open(),
+                self.inner.end_gap_extend(),
                 self.use_matrix
             )
         } else {
             format!(
                 "Scoring(match_score={}, mismatch_score={}, gap_open={}, gap_extend={}, use_matrix={})",
-                self.inner.match_score,
-                self.inner.mismatch_score,
-                self.inner.gap_open,
-                self.inner.gap_extend,
+                self.inner.match_score(),
+                self.inner.mismatch_score(),
+                self.inner.gap_open(),
+                self.inner.gap_extend(),
                 self.use_matrix
             )
         }
@@ -228,7 +232,7 @@ pub struct AlignmentResult {
 
 fn cigar_to_py(cigar: &core_align::Cigar) -> Vec<(String, usize)> {
     cigar
-        .ops
+        .ops()
         .iter()
         .map(|(op, len)| {
             let code = match op {
@@ -284,7 +288,12 @@ impl AlignmentResult {
     }
 
     fn __repr__(&self) -> String {
-        let cigar = self.inner.cigar.as_ref().map(|c| c.ops.len()).unwrap_or(0);
+        let cigar = self
+            .inner
+            .cigar
+            .as_ref()
+            .map(|c| c.ops().len())
+            .unwrap_or(0);
         format!(
             "AlignmentResult(score={}, query_end={}, target_end={}, cigar_ops={})",
             self.inner.score, self.inner.query_end, self.inner.target_end, cigar
@@ -317,7 +326,7 @@ impl AlignmentResult {
         let mut mid_out = String::new();
         let mut t_out = String::new();
 
-        for (op, len) in &cigar.ops {
+        for (op, len) in cigar.ops() {
             match op {
                 core_align::CigarOp::Match => {
                     if q_idx + len > q_bytes.len() || t_idx + len > t_bytes.len() {
@@ -413,13 +422,13 @@ fn align_internal(
         }
     };
 
-    let auto_scoring = if scoring.inner.matrix.is_none() && scoring.use_matrix {
+    let auto_scoring = if scoring.inner.matrix().is_none() && scoring.use_matrix {
         let def = if is_dna {
             core_align::matrices::matrix_by_name("EDNAFULL").expect("EDNAFULL matrix is available")
         } else {
             core_align::matrices::matrix_by_name("BLOSUM62").expect("BLOSUM62 matrix is available")
         };
-        if def.alphabet.len() != q_enc.alphabet_size {
+        if def.alphabet.len() != q_enc.alphabet_size() {
             return Err(PyValueError::new_err(
                 "scoring matrix alphabet size does not match sequence alphabet",
             ));
@@ -427,22 +436,23 @@ fn align_internal(
         let mut sc = core_align::Scoring::with_matrix(
             def.scores.to_vec(),
             def.alphabet.len(),
-            scoring.inner.gap_open,
-            scoring.inner.gap_extend,
-        );
-        if scoring.inner.end_gap {
-            sc = sc.with_end_gaps(scoring.inner.end_gap_open, scoring.inner.end_gap_extend);
+            scoring.inner.gap_open(),
+            scoring.inner.gap_extend(),
+        )
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        if scoring.inner.end_gap() {
+            sc = sc.with_end_gaps(scoring.inner.end_gap_open(), scoring.inner.end_gap_extend());
         }
         Some(sc)
     } else {
         None
     };
     let scoring_ref = auto_scoring.as_ref().unwrap_or(&scoring.inner);
-    if scoring_ref.matrix.is_some()
+    if scoring_ref.matrix().is_some()
         && scoring_ref
-            .alphabet_size
+            .alphabet_size_opt()
             .expect("alphabet_size must be set when matrix is present")
-            != q_enc.alphabet_size
+            != q_enc.alphabet_size()
     {
         return Err(PyValueError::new_err(
             "scoring matrix alphabet size does not match sequence alphabet",

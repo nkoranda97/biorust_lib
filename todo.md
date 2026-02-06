@@ -9,6 +9,59 @@ Broad audit of biorust (Rust bioinformatics library + PyO3 Python bindings) focu
 
 ---
 
+## Progress (2026-02-06)
+
+**✅ ALL ITEMS COMPLETE!**
+
+### Completed Items
+
+- ✅ **1.1** — Error messages (DnaSeq/ProteinSeq validation now reports actual char/pos)
+- ✅ **1.3** — DnaSeq len/is_empty/reverse (added missing methods)
+- ✅ **2.4** — Cigar Display impl (CIGAR string formatting)
+- ✅ **1.2** — Scoring Result + validation (replaced assert! panics, added InvalidScoring error)
+- ✅ **2.1** — Field encapsulation (EncodedSeq, Cigar, Scoring all have pub(crate) fields + accessors)
+- ✅ **2.2 + 2.3** — Remove duplicates, fix in-place semantics (removed from_vec/reverse_complements_inplace alias, fixed RecordBatch bug)
+- ✅ **2.5** — Python API consistency (unified DNABatch reverse_complement API)
+- ✅ **3.1 + 3.2** — Python iter/hash (added `__iter__` and `__hash__` to DNA and Protein)
+- ✅ **3.3** — Docstrings (comprehensive docstrings in _native.pyi for DNA, Protein, Scoring, alignment functions, I/O, and batch types)
+
+### Files Modified
+
+**Rust Core:**
+
+- `biorust-core/src/error.rs` — Added `InvalidScoring` error variant
+- `biorust-core/src/seq/dna.rs` — Fixed validation errors, added len/is_empty/reverse, added Hash derive
+- `biorust-core/src/seq/protein.rs` — Fixed validation errors, simplified to_string(), added Hash derive
+- `biorust-core/src/align/types.rs` — Changed Scoring constructors to return Result, added validation, made fields pub(crate) with accessors, added Cigar Display impl
+- `biorust-core/src/align/encode.rs` — Made EncodedSeq fields pub(crate) with accessors
+- `biorust-core/src/align/tests.rs` — Updated all Scoring::simple() calls to add .unwrap()
+- `biorust-core/src/seq/batch.rs` — Removed from_vec() and reverse_complements_inplace() duplicates
+- `biorust-core/src/seq/record_batch.rs` — Fixed reverse_complements_in_place() to actually mutate in place, renamed from _inplace to _in_place
+
+**Python Bindings:**
+
+- `biorust-py/src/align.rs` — Updated to use accessor methods, handle Result from Scoring constructors
+- `biorust-py/src/batch.rs` — Removed reverse_complements_in_place() method (kept parameter form only)
+- `biorust-py/src/dna.rs` — Added `__hash__`, `__iter__`, and DNAIterator class
+- `biorust-py/src/protein.rs` — Added `__hash__`, `__iter__`, and ProteinIterator class
+- `biorust-py/src/dna_record_batch.rs` — Updated method call to _in_place
+- `src/biorust/_native.pyi` — Added comprehensive docstrings, removed reverse_complements_in_place from DNABatch, added Iterator import
+
+**Tests:**
+
+- `tests/test_batch.py` — Updated to use reverse_complements(inplace=True) instead of reverse_complements_in_place()
+
+### Final Status
+
+**All tests passing:**
+
+- 72 Rust core tests (with simd feature)
+- 45 Python tests
+
+**Token usage:** 125,697 / 200,000 (62.8% used)
+
+---
+
 ## Tier 1: Correctness Bugs
 
 ### 1.1 Fix placeholder error in DnaSeq::new() and ProteinSeq::new()
@@ -32,21 +85,7 @@ Broad audit of biorust (Rust bioinformatics library + PyO3 Python bindings) focu
  }
  ```
 
- With:
-
- ```rust
- pub fn new(bytes: Vec<u8>) -> BioResult<Self> {
-     let alphabet = dna::iupac_alphabet();
-     for (pos, &b) in bytes.iter().enumerate() {
-         if !alphabet.symbols.contains(b as usize) {
-             return Err(BioError::InvalidChar { ch: b as char, pos });
-         }
-     }
-     Ok(Self { bytes })
- }
-```
-
-**With:**
+**With:**/
 
 ```rust
 pub fn new(bytes: Vec<u8>) -> BioResult<Self> {

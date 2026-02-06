@@ -53,15 +53,16 @@ seqs = read_csv(
     on_error="skip",
 )
 
+seq1 = seqs[0].seq
+seq2 = seqs[1].seq
 
-seq1 = DNA("ATGAGTCTCTCTGATAAGGACAAGGCTGCTGTGAAAGCCCTATGG")
-seq2 = DNA("CTGTCTCCTGCCGACAAGACCAACGTCAAGGCCGCCTGGGGTAAG")
-expected1: str = "ATGAGTCTCTCT------GATAAG------GACAAGGCTGC--TGTGAAAGCCCTATGG"
+scoring = Scoring(gap_open=-10, gap_extend=-0.5)
+results = align_global(seq1, seq2, scoring=scoring, traceback=True)
 
-expected2 = "------CTGTCTCCTGCCGACAAGACCAACGTCAAGGCCGCCTGGGGTAAG--------"
+aligned1, aligned2 = results.aligned_strings()
+print(aligned1)
+print("\n")
+print(aligned2)
 
-scoring = Scoring(gap_open=-10.0, gap_extend=-0.5)
-result = align_global(seq1, seq2, scoring, traceback=True)
-results1, results2 = result.aligned_strings()
-
-print(result.alignment_diagram())
+seqs.reverse_complements()
+print(seqs[0].seq)

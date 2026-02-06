@@ -55,7 +55,7 @@ def test_dna_batch_mutations():
     assert len(batch) == 0
 
     batch.extend(DNABatch([DNA("AC")]))
-    batch.reverse_complements_in_place()
+    batch.reverse_complements(inplace=True)
     assert [str(s) for s in batch.to_list()] == ["GT"]
 
     batch.clear()

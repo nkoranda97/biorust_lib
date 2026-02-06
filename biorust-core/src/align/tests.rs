@@ -109,7 +109,7 @@ fn encode_dna_valid() {
 fn local_scalar_simple_match() {
     let q = encode_dna(b"ACGT").unwrap();
     let t = encode_dna(b"ACGT").unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let res = align_local_scalar(&q, &t, &scoring, true);
     assert_eq!(res.score, 8.0);
     assert_eq!(res.query_end, 3);
@@ -123,7 +123,7 @@ fn local_scalar_simple_match() {
 fn global_scalar_simple_match() {
     let q = encode_dna(b"ACGT").unwrap();
     let t = encode_dna(b"ACGT").unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let res = align_global_scalar(&q, &t, &scoring, true);
     assert_eq!(res.score, 8.0);
     assert_eq!(res.query_end, 3);
@@ -135,7 +135,7 @@ fn global_scalar_simple_match() {
 fn global_scalar_gap() {
     let q = encode_dna(b"ACGT").unwrap();
     let t = encode_dna(b"ACG").unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let res = align_global_scalar(&q, &t, &scoring, true);
     assert_eq!(res.score, 4.0);
 }
@@ -144,7 +144,7 @@ fn global_scalar_gap() {
 fn align_local_with_traceback() {
     let q = encode_dna(b"ACGTAC").unwrap();
     let t = encode_dna(b"TTACGT").unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let res = align_local(&q, &t, &scoring, true);
     assert!(res.cigar.is_some());
     assert!(res.query_start.is_some());
@@ -155,7 +155,7 @@ fn align_local_with_traceback() {
 fn align_global_with_traceback() {
     let q = encode_dna(b"ACGT").unwrap();
     let t = encode_dna(b"ACG").unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let res = align_global(&q, &t, &scoring, true);
     assert!(res.cigar.is_some());
     assert_eq!(res.query_start, Some(0));
@@ -168,7 +168,7 @@ fn global_ungap_roundtrip() {
     let t_bytes = b"ACG";
     let q = encode_dna(q_bytes).unwrap();
     let t = encode_dna(t_bytes).unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let res = align_global_scalar(&q, &t, &scoring, true);
     let cigar = res.cigar.as_ref().unwrap();
     assert_ungap_roundtrip(&q.codes, &t.codes, cigar, 0, 0);
@@ -180,7 +180,7 @@ fn global_rescore_matches_dp() {
     let t_bytes = b"ACGT";
     let q = encode_dna(q_bytes).unwrap();
     let t = encode_dna(t_bytes).unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let res = align_global_scalar(&q, &t, &scoring, true);
     let cigar = res.cigar.as_ref().unwrap();
     let recomputed = rescore_from_cigar(q_bytes, t_bytes, cigar, &scoring, 0, 0);
@@ -193,7 +193,7 @@ fn local_rescore_matches_dp() {
     let t_bytes = b"ACGT";
     let q = encode_dna(q_bytes).unwrap();
     let t = encode_dna(t_bytes).unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let res = align_local_scalar(&q, &t, &scoring, true);
     let cigar = res.cigar.as_ref().unwrap();
     let qs = res.query_start.unwrap();
@@ -211,7 +211,7 @@ proptest! {
     ) {
         let q_enc = encode_dna(&q).unwrap();
         let t_enc = encode_dna(&t).unwrap();
-        let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+        let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
         prop_assume!(scoring.simd_compatible());
         let scalar = align_global_scalar(&q_enc, &t_enc, &scoring, false);
         let (simd_score, _, _) = super::global_simd::align_global_score(&q_enc, &t_enc, &scoring);
@@ -226,7 +226,7 @@ proptest! {
                                   t in prop::collection::vec(prop_oneof![Just(b'A'), Just(b'C'), Just(b'G'), Just(b'T')], 1..40)) {
         let q_enc = encode_dna(&q).unwrap();
         let t_enc = encode_dna(&t).unwrap();
-        let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+        let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
         let scalar = align_local_scalar(&q_enc, &t_enc, &scoring, false);
         let (simd_score, _, _) = align_local_score(&q_enc, &t_enc, &scoring);
         prop_assert_eq!(simd_score, scalar.score);
@@ -240,7 +240,7 @@ proptest! {
                                   t in prop::collection::vec(prop_oneof![Just(b'A'), Just(b'C'), Just(b'G'), Just(b'T')], 1..30)) {
         let q_enc = encode_dna(&q).unwrap();
         let t_enc = encode_dna(&t).unwrap();
-        let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+        let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
         let scalar = align_global_scalar(&q_enc, &t_enc, &scoring, false);
         let (simd_score, _, _) = super::global_simd::align_global_score(&q_enc, &t_enc, &scoring);
         prop_assert_eq!(simd_score, scalar.score);
@@ -254,7 +254,7 @@ fn local_simd_debug_rows() {
     let t = b"AGATCCCAAG";
     let q_enc = encode_dna(q).unwrap();
     let t_enc = encode_dna(t).unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let simd_rows = super::local_simd::align_local_score_rows(&q_enc, &t_enc, &scoring);
     let mut scalar_rows = Vec::new();
     let m = q_enc.codes.len();
@@ -298,7 +298,7 @@ fn global_known_answer_insertion() {
     // Query: ACGT, Target: AGT => one deletion from target perspective (or insertion in query)
     let q = encode_dna(b"ACGT").unwrap();
     let t = encode_dna(b"AGT").unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let res = align_global_scalar(&q, &t, &scoring, true);
     let cigar = res.cigar.as_ref().unwrap();
     let recomputed = rescore_from_cigar(b"ACGT", b"AGT", cigar, &scoring, 0, 0);
@@ -310,7 +310,7 @@ fn global_known_answer_deletion() {
     // Query: AGT, Target: ACGT
     let q = encode_dna(b"AGT").unwrap();
     let t = encode_dna(b"ACGT").unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let res = align_global_scalar(&q, &t, &scoring, true);
     let cigar = res.cigar.as_ref().unwrap();
     let recomputed = rescore_from_cigar(b"AGT", b"ACGT", cigar, &scoring, 0, 0);
@@ -321,7 +321,7 @@ fn global_known_answer_deletion() {
 fn global_known_answer_all_mismatches() {
     let q = encode_dna(b"AAAA").unwrap();
     let t = encode_dna(b"CCCC").unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let res = align_global_scalar(&q, &t, &scoring, true);
     // All mismatches: 4 * -1 = -4
     assert_eq!(res.score, -4.0);
@@ -335,7 +335,7 @@ fn global_known_answer_long_gap() {
     // Query has extra bases that must be gapped
     let q = encode_dna(b"ACGTACGT").unwrap();
     let t = encode_dna(b"ACGT").unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let res = align_global_scalar(&q, &t, &scoring, true);
     let cigar = res.cigar.as_ref().unwrap();
     let recomputed = rescore_from_cigar(b"ACGTACGT", b"ACGT", cigar, &scoring, 0, 0);
@@ -346,7 +346,7 @@ fn global_known_answer_long_gap() {
 fn local_known_answer_partial_match() {
     let q = encode_dna(b"NNACGTNN").unwrap();
     let t = encode_dna(b"ACGT").unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let res = align_local_scalar(&q, &t, &scoring, true);
     assert_eq!(res.score, 8.0); // perfect 4-match
     let cigar = res.cigar.as_ref().unwrap();
@@ -360,7 +360,7 @@ fn local_known_answer_partial_match() {
 fn global_single_char_sequences() {
     let q = encode_dna(b"A").unwrap();
     let t = encode_dna(b"A").unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let res = align_global_scalar(&q, &t, &scoring, true);
     assert_eq!(res.score, 2.0);
     let cigar = res.cigar.as_ref().unwrap();
@@ -371,7 +371,7 @@ fn global_single_char_sequences() {
 fn global_single_char_mismatch() {
     let q = encode_dna(b"A").unwrap();
     let t = encode_dna(b"C").unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let res = align_global_scalar(&q, &t, &scoring, true);
     assert_eq!(res.score, -1.0);
     let cigar = res.cigar.as_ref().unwrap();
@@ -382,7 +382,7 @@ fn global_single_char_mismatch() {
 fn global_all_gaps_query_empty() {
     let q = encode_dna(b"").unwrap();
     let t = encode_dna(b"ACGT").unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let res = align_global_scalar(&q, &t, &scoring, true);
     // gap_open + gap_extend * 3 = -2 + (-1)*3 = -5
     assert_eq!(res.score, -5.0);
@@ -392,7 +392,7 @@ fn global_all_gaps_query_empty() {
 fn global_all_gaps_target_empty() {
     let q = encode_dna(b"ACGT").unwrap();
     let t = encode_dna(b"").unwrap();
-    let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+    let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
     let res = align_global_scalar(&q, &t, &scoring, true);
     assert_eq!(res.score, -5.0);
 }
@@ -402,11 +402,27 @@ fn global_all_gaps_target_empty() {
 #[test]
 fn global_traceback_varied_scoring() {
     let cases: Vec<(&[u8], &[u8], Scoring)> = vec![
-        (b"ACGTACGT", b"ACGTACGT", Scoring::simple(1, -3, -5.0, -2.0)),
-        (b"AAAAAA", b"AAA", Scoring::simple(1, -1, -3.0, -1.0)),
-        (b"ACGT", b"TGCA", Scoring::simple(2, -2, -4.0, -1.0)),
-        (b"ACGTACGT", b"ACTACG", Scoring::simple(3, -1, -5.0, -2.0)),
-        (b"A", b"ACGT", Scoring::simple(1, -1, -2.0, -1.0)),
+        (
+            b"ACGTACGT",
+            b"ACGTACGT",
+            Scoring::simple(1, -3, -5.0, -2.0).unwrap(),
+        ),
+        (
+            b"AAAAAA",
+            b"AAA",
+            Scoring::simple(1, -1, -3.0, -1.0).unwrap(),
+        ),
+        (
+            b"ACGT",
+            b"TGCA",
+            Scoring::simple(2, -2, -4.0, -1.0).unwrap(),
+        ),
+        (
+            b"ACGTACGT",
+            b"ACTACG",
+            Scoring::simple(3, -1, -5.0, -2.0).unwrap(),
+        ),
+        (b"A", b"ACGT", Scoring::simple(1, -1, -2.0, -1.0).unwrap()),
     ];
     for (q_bytes, t_bytes, scoring) in &cases {
         let q = encode_dna(q_bytes).unwrap();
@@ -428,10 +444,26 @@ fn global_traceback_varied_scoring() {
 #[test]
 fn local_traceback_varied_scoring() {
     let cases: Vec<(&[u8], &[u8], Scoring)> = vec![
-        (b"ACGTACGT", b"ACGTACGT", Scoring::simple(1, -3, -5.0, -2.0)),
-        (b"AAACCCTTT", b"AAATTT", Scoring::simple(1, -1, -3.0, -1.0)),
-        (b"ACGT", b"TGCA", Scoring::simple(2, -2, -4.0, -1.0)),
-        (b"GATTACA", b"GCATGCA", Scoring::simple(3, -1, -5.0, -2.0)),
+        (
+            b"ACGTACGT",
+            b"ACGTACGT",
+            Scoring::simple(1, -3, -5.0, -2.0).unwrap(),
+        ),
+        (
+            b"AAACCCTTT",
+            b"AAATTT",
+            Scoring::simple(1, -1, -3.0, -1.0).unwrap(),
+        ),
+        (
+            b"ACGT",
+            b"TGCA",
+            Scoring::simple(2, -2, -4.0, -1.0).unwrap(),
+        ),
+        (
+            b"GATTACA",
+            b"GCATGCA",
+            Scoring::simple(3, -1, -5.0, -2.0).unwrap(),
+        ),
     ];
     for (q_bytes, t_bytes, scoring) in &cases {
         let q = encode_dna(q_bytes).unwrap();
@@ -471,7 +503,7 @@ proptest! {
     ) {
         let q_enc = encode_dna(&q).unwrap();
         let t_enc = encode_dna(&t).unwrap();
-        let scoring = Scoring::simple(match_score, mismatch, gap_open as f32, gap_ext as f32);
+        let scoring = Scoring::simple(match_score, mismatch, gap_open as f32, gap_ext as f32).unwrap();
         let scalar = align_global_scalar(&q_enc, &t_enc, &scoring, false);
         let (simd_score, _, _) = super::global_simd::align_global_score(&q_enc, &t_enc, &scoring);
         prop_assert_eq!(simd_score, scalar.score,
@@ -495,7 +527,7 @@ proptest! {
     ) {
         let q_enc = encode_dna(&q).unwrap();
         let t_enc = encode_dna(&t).unwrap();
-        let scoring = Scoring::simple(match_score, mismatch, gap_open as f32, gap_ext as f32);
+        let scoring = Scoring::simple(match_score, mismatch, gap_open as f32, gap_ext as f32).unwrap();
         let scalar = align_local_scalar(&q_enc, &t_enc, &scoring, false);
         let (simd_score, _, _) = align_local_score(&q_enc, &t_enc, &scoring);
         prop_assert_eq!(simd_score, scalar.score,
@@ -516,7 +548,7 @@ proptest! {
     ) {
         let q_enc = encode_dna(&q).unwrap();
         let t_enc = encode_dna(&t).unwrap();
-        let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+        let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
         let res = align_global_scalar(&q_enc, &t_enc, &scoring, true);
         let cigar = res.cigar.as_ref().unwrap();
         let recomputed = rescore_from_cigar(&q, &t, cigar, &scoring, 0, 0);
@@ -537,7 +569,7 @@ proptest! {
     ) {
         let q_enc = encode_dna(&q).unwrap();
         let t_enc = encode_dna(&t).unwrap();
-        let scoring = Scoring::simple(2, -1, -2.0, -1.0);
+        let scoring = Scoring::simple(2, -1, -2.0, -1.0).unwrap();
         let res = align_local_scalar(&q_enc, &t_enc, &scoring, true);
         if res.score > 0.0 {
             let cigar = res.cigar.as_ref().unwrap();
@@ -580,7 +612,7 @@ proptest! {
 
         let t_enc = encode_dna(&t).unwrap();
 
-        let scoring = Scoring::simple(match_score, mismatch, gap_open as f32, gap_ext as f32);
+        let scoring = Scoring::simple(match_score, mismatch, gap_open as f32, gap_ext as f32).unwrap();
 
         let res = align_global_scalar(&q_enc, &t_enc, &scoring, true);
 

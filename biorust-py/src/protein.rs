@@ -67,6 +67,20 @@ impl Protein {
         Ok(seq_shared::seq_repr(self.as_bytes(), "Protein"))
     }
 
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.inner.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn __iter__(slf: PyRef<'_, Self>) -> ProteinIterator {
+        ProteinIterator {
+            bytes: slf.as_bytes().to_vec(),
+            index: 0,
+        }
+    }
+
     fn __getitem__<'py>(&self, py: Python<'py>, index: &Bound<'py, PyAny>) -> PyResult<PyObject> {
         let make = |out: Vec<u8>| -> PyResult<PyObject> {
             let inner = ProteinSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -474,8 +488,32 @@ impl Protein {
     }
 }
 
+#[pyclass]
+struct ProteinIterator {
+    bytes: Vec<u8>,
+    index: usize,
+}
+
+#[pymethods]
+impl ProteinIterator {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self) -> Option<String> {
+        if self.index < self.bytes.len() {
+            let ch = self.bytes[self.index] as char;
+            self.index += 1;
+            Some(ch.to_string())
+        } else {
+            None
+        }
+    }
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Protein>()?;
+    m.add_class::<ProteinIterator>()?;
     Ok(())
 }
 

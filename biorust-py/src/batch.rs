@@ -127,6 +127,51 @@ fn collect_take_indices(obj: &Bound<'_, PyAny>, len: usize) -> PyResult<Vec<usiz
     Ok(out)
 }
 
+fn protein_counts_to_pairs(counts: &[u32; 256]) -> Vec<(String, u32)> {
+    counts
+        .iter()
+        .enumerate()
+        .filter_map(|(b, &count)| {
+            if count == 0 {
+                None
+            } else {
+                Some(((b as u8 as char).to_string(), count))
+            }
+        })
+        .collect()
+}
+
+fn protein_freq_to_pairs(freq: &[f64; 256]) -> Vec<(String, f64)> {
+    freq.iter()
+        .enumerate()
+        .filter_map(|(b, &val)| {
+            if val == 0.0 {
+                None
+            } else {
+                Some(((b as u8 as char).to_string(), val))
+            }
+        })
+        .collect()
+}
+
+fn protein_counts_20_to_pairs(counts: &[u32; 20]) -> Vec<(String, u32)> {
+    let letters = b"ARNDCEQGHILKMFPSTWYV";
+    letters
+        .iter()
+        .enumerate()
+        .map(|(i, &b)| ((b as char).to_string(), counts[i]))
+        .collect()
+}
+
+fn protein_freq_20_to_pairs(freq: &[f64; 20]) -> Vec<(String, f64)> {
+    let letters = b"ARNDCEQGHILKMFPSTWYV";
+    letters
+        .iter()
+        .enumerate()
+        .map(|(i, &b)| ((b as char).to_string(), freq[i]))
+        .collect()
+}
+
 #[pymethods]
 impl DNABatch {
     #[new]
@@ -248,6 +293,32 @@ impl DNABatch {
             .concat_all()
             .map_err(|err| PyValueError::new_err(err.to_string()))?;
         Ok(Py::new(py, DNA { inner: seq })?.to_object(py))
+    }
+
+    #[pyo3(signature = (inplace=false))]
+    fn complement(&mut self, py: Python<'_>, inplace: bool) -> PyResult<PyObject> {
+        if inplace {
+            self.inner.complements_in_place();
+            return Ok(py.None());
+        }
+        let out = DNABatch {
+            inner: self.inner.complements(),
+        };
+        Ok(Py::new(py, out)?.to_object(py))
+    }
+
+    fn transcribe(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let out = RNABatch {
+            inner: self.inner.transcribe(),
+        };
+        Ok(Py::new(py, out)?.to_object(py))
+    }
+
+    fn translate(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let out = ProteinBatch {
+            inner: self.inner.translate(),
+        };
+        Ok(Py::new(py, out)?.to_object(py))
     }
 
     fn count(&self, needle: &Bound<'_, PyAny>) -> PyResult<Vec<usize>> {
@@ -462,6 +533,32 @@ impl RNABatch {
         Ok(Py::new(py, RNA { inner: seq })?.to_object(py))
     }
 
+    #[pyo3(signature = (inplace=false))]
+    fn complement(&mut self, py: Python<'_>, inplace: bool) -> PyResult<PyObject> {
+        if inplace {
+            self.inner.complements_in_place();
+            return Ok(py.None());
+        }
+        let out = RNABatch {
+            inner: self.inner.complements(),
+        };
+        Ok(Py::new(py, out)?.to_object(py))
+    }
+
+    fn back_transcribe(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let out = DNABatch {
+            inner: self.inner.back_transcribe(),
+        };
+        Ok(Py::new(py, out)?.to_object(py))
+    }
+
+    fn translate(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let out = ProteinBatch {
+            inner: self.inner.translate(),
+        };
+        Ok(Py::new(py, out)?.to_object(py))
+    }
+
     fn append(&mut self, seq: &Bound<'_, PyAny>) -> PyResult<()> {
         let rna = seq
             .extract::<PyRef<'_, RNA>>()
@@ -654,6 +751,92 @@ impl ProteinBatch {
             .concat_all()
             .map_err(|err| PyValueError::new_err(err.to_string()))?;
         Ok(Py::new(py, Protein { inner: seq })?.to_object(py))
+    }
+
+    #[pyo3(signature = (inplace=false))]
+    fn reverse(&mut self, py: Python<'_>, inplace: bool) -> PyResult<PyObject> {
+        if inplace {
+            self.inner.reverse_in_place();
+            return Ok(py.None());
+        }
+        let out = ProteinBatch {
+            inner: self.inner.reverse(),
+        };
+        Ok(Py::new(py, out)?.to_object(py))
+    }
+
+    fn counts(&self) -> Vec<Vec<(String, u32)>> {
+        self.inner
+            .counts()
+            .iter()
+            .map(protein_counts_to_pairs)
+            .collect()
+    }
+
+    fn frequencies(&self) -> Vec<Vec<(String, f64)>> {
+        self.inner
+            .frequencies()
+            .iter()
+            .map(protein_freq_to_pairs)
+            .collect()
+    }
+
+    fn aa_counts_20(&self) -> Vec<Vec<(String, u32)>> {
+        self.inner
+            .aa_counts_20()
+            .iter()
+            .map(protein_counts_20_to_pairs)
+            .collect()
+    }
+
+    fn aa_frequencies_20(&self) -> Vec<Vec<(String, f64)>> {
+        self.inner
+            .aa_frequencies_20()
+            .iter()
+            .map(protein_freq_20_to_pairs)
+            .collect()
+    }
+
+    fn shannon_entropy(&self) -> Vec<f64> {
+        self.inner.shannon_entropy()
+    }
+
+    fn molecular_weight(&self) -> PyResult<Vec<f64>> {
+        self.inner
+            .molecular_weight()
+            .map_err(|err| PyValueError::new_err(err.to_string()))
+    }
+
+    fn hydrophobicity(&self) -> PyResult<Vec<f64>> {
+        self.inner
+            .hydrophobicity()
+            .map_err(|err| PyValueError::new_err(err.to_string()))
+    }
+
+    fn hydrophobicity_profile(&self, window: usize) -> PyResult<Vec<Vec<f64>>> {
+        self.inner
+            .hydrophobicity_profile(window)
+            .map_err(|err| PyValueError::new_err(err.to_string()))
+    }
+
+    fn net_charge(&self, ph: f64) -> PyResult<Vec<f64>> {
+        self.inner
+            .net_charge(ph)
+            .map_err(|err| PyValueError::new_err(err.to_string()))
+    }
+
+    fn isoelectric_point(&self) -> PyResult<Vec<f64>> {
+        self.inner
+            .isoelectric_point()
+            .map_err(|err| PyValueError::new_err(err.to_string()))
+    }
+
+    fn has_ambiguous(&self) -> Vec<bool> {
+        self.inner.has_ambiguous()
+    }
+
+    fn unknown_positions(&self) -> Vec<Vec<usize>> {
+        self.inner.unknown_positions()
     }
 
     fn count(&self, needle: &Bound<'_, PyAny>) -> PyResult<Vec<usize>> {

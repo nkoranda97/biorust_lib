@@ -1,6 +1,6 @@
 import pytest
 
-from biorust import DNA, DNABatch
+from biorust import DNA, DNABatch, ProteinBatch, RNABatch
 
 
 def test_dna_batch_copy_slice_take_concat():
@@ -61,3 +61,22 @@ def test_dna_batch_take_and_slice_errors():
 
     with pytest.raises(ValueError):
         batch.slice(step=0)
+
+
+def test_dna_batch_complement_transcribe_translate():
+    batch = DNABatch([DNA("ATG"), DNA("CCG")])
+
+    complement = batch.complement()
+    assert [str(s) for s in complement.to_list()] == ["TAC", "GGC"]
+
+    out = batch.complement(inplace=True)
+    assert out is None
+    assert [str(s) for s in batch.to_list()] == ["TAC", "GGC"]
+
+    rna = batch.transcribe()
+    assert isinstance(rna, RNABatch)
+    assert [str(s) for s in rna.to_list()] == ["UAC", "GGC"]
+
+    protein = DNABatch([DNA("ATG")]).translate()
+    assert isinstance(protein, ProteinBatch)
+    assert [str(s) for s in protein.to_list()] == ["M"]

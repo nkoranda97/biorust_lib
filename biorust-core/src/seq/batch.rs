@@ -3,6 +3,7 @@ use crate::seq::bytes::IntoNeedle;
 use crate::seq::dna::DnaSeq;
 use crate::seq::dna::ReverseComplement;
 use crate::seq::protein::ProteinSeq;
+use crate::seq::rna::RnaSeq;
 use crate::seq::traits::SeqBytes;
 use std::ops::Index;
 
@@ -212,6 +213,139 @@ where
     }
 }
 
+impl SeqBatch<DnaSeq> {
+    pub fn complements(&self) -> Self {
+        let out = self.seqs.iter().map(|seq| seq.complement()).collect();
+        Self { seqs: out }
+    }
+
+    pub fn complements_in_place(&mut self) {
+        for seq in &mut self.seqs {
+            *seq = seq.complement();
+        }
+    }
+
+    pub fn transcribe(&self) -> SeqBatch<RnaSeq> {
+        let out = self.seqs.iter().map(|seq| seq.transcribe()).collect();
+        SeqBatch { seqs: out }
+    }
+
+    pub fn translate(&self) -> SeqBatch<ProteinSeq> {
+        let out = self.seqs.iter().map(|seq| seq.translate()).collect();
+        SeqBatch { seqs: out }
+    }
+}
+
+impl SeqBatch<RnaSeq> {
+    pub fn complements(&self) -> Self {
+        let out = self.seqs.iter().map(|seq| seq.complement()).collect();
+        Self { seqs: out }
+    }
+
+    pub fn complements_in_place(&mut self) {
+        for seq in &mut self.seqs {
+            *seq = seq.complement();
+        }
+    }
+
+    pub fn back_transcribe(&self) -> SeqBatch<DnaSeq> {
+        let out = self.seqs.iter().map(|seq| seq.back_transcribe()).collect();
+        SeqBatch { seqs: out }
+    }
+
+    pub fn translate(&self) -> SeqBatch<ProteinSeq> {
+        let out = self.seqs.iter().map(|seq| seq.translate()).collect();
+        SeqBatch { seqs: out }
+    }
+}
+
+impl SeqBatch<ProteinSeq> {
+    pub fn reverse(&self) -> Self {
+        let out = self.seqs.iter().map(|seq| seq.reverse()).collect();
+        Self { seqs: out }
+    }
+
+    pub fn reverse_in_place(&mut self) {
+        for seq in &mut self.seqs {
+            *seq = seq.reverse();
+        }
+    }
+
+    pub fn counts(&self) -> Vec<[u32; 256]> {
+        self.seqs.iter().map(|seq| seq.counts()).collect()
+    }
+
+    pub fn frequencies(&self) -> Vec<[f64; 256]> {
+        self.seqs.iter().map(|seq| seq.frequencies()).collect()
+    }
+
+    pub fn aa_counts_20(&self) -> Vec<[u32; 20]> {
+        self.seqs.iter().map(|seq| seq.aa_counts_20()).collect()
+    }
+
+    pub fn aa_frequencies_20(&self) -> Vec<[f64; 20]> {
+        self.seqs
+            .iter()
+            .map(|seq| seq.aa_frequencies_20())
+            .collect()
+    }
+
+    pub fn shannon_entropy(&self) -> Vec<f64> {
+        self.seqs.iter().map(|seq| seq.shannon_entropy()).collect()
+    }
+
+    pub fn molecular_weight(&self) -> BioResult<Vec<f64>> {
+        let mut out = Vec::with_capacity(self.seqs.len());
+        for seq in &self.seqs {
+            out.push(seq.molecular_weight()?);
+        }
+        Ok(out)
+    }
+
+    pub fn hydrophobicity(&self) -> BioResult<Vec<f64>> {
+        let mut out = Vec::with_capacity(self.seqs.len());
+        for seq in &self.seqs {
+            out.push(seq.hydrophobicity()?);
+        }
+        Ok(out)
+    }
+
+    pub fn hydrophobicity_profile(&self, window: usize) -> BioResult<Vec<Vec<f64>>> {
+        let mut out = Vec::with_capacity(self.seqs.len());
+        for seq in &self.seqs {
+            out.push(seq.hydrophobicity_profile(window)?);
+        }
+        Ok(out)
+    }
+
+    pub fn net_charge(&self, ph: f64) -> BioResult<Vec<f64>> {
+        let mut out = Vec::with_capacity(self.seqs.len());
+        for seq in &self.seqs {
+            out.push(seq.net_charge(ph)?);
+        }
+        Ok(out)
+    }
+
+    pub fn isoelectric_point(&self) -> BioResult<Vec<f64>> {
+        let mut out = Vec::with_capacity(self.seqs.len());
+        for seq in &self.seqs {
+            out.push(seq.isoelectric_point()?);
+        }
+        Ok(out)
+    }
+
+    pub fn has_ambiguous(&self) -> Vec<bool> {
+        self.seqs.iter().map(|seq| seq.has_ambiguous()).collect()
+    }
+
+    pub fn unknown_positions(&self) -> Vec<Vec<usize>> {
+        self.seqs
+            .iter()
+            .map(|seq| seq.unknown_positions())
+            .collect()
+    }
+}
+
 pub trait CountContains {
     fn count<'a, N>(&'a self, sub: N) -> BioResult<usize>
     where
@@ -285,6 +419,8 @@ mod tests {
     use super::*;
     use crate::error::BioError;
     use crate::seq::dna::DnaSeq;
+    use crate::seq::protein::ProteinSeq;
+    use crate::seq::rna::RnaSeq;
 
     #[test]
     fn batch_construction_and_access() {
@@ -473,6 +609,51 @@ mod tests {
 
         let contains = batch.contains(b"TT").unwrap();
         assert_eq!(contains, vec![false, true]);
+    }
+
+    #[test]
+    fn batch_dna_biology_ops() {
+        let batch = SeqBatch::new(vec![DnaSeq::new(b"ATG".to_vec()).unwrap()]);
+
+        let complements = batch.complements();
+        assert_eq!(complements.to_bytes_vec(), vec![b"TAC".to_vec()]);
+
+        let rna = batch.transcribe();
+        assert_eq!(rna.to_bytes_vec(), vec![b"AUG".to_vec()]);
+
+        let protein = batch.translate();
+        assert_eq!(protein.to_bytes_vec(), vec![b"M".to_vec()]);
+    }
+
+    #[test]
+    fn batch_rna_biology_ops() {
+        let batch = SeqBatch::new(vec![RnaSeq::new(b"AUG".to_vec()).unwrap()]);
+
+        let complements = batch.complements();
+        assert_eq!(complements.to_bytes_vec(), vec![b"UAC".to_vec()]);
+
+        let dna = batch.back_transcribe();
+        assert_eq!(dna.to_bytes_vec(), vec![b"ATG".to_vec()]);
+
+        let protein = batch.translate();
+        assert_eq!(protein.to_bytes_vec(), vec![b"M".to_vec()]);
+    }
+
+    #[test]
+    fn batch_protein_biology_ops() {
+        let batch = SeqBatch::new(vec![ProteinSeq::new(b"ACD".to_vec()).unwrap()]);
+
+        let reversed = batch.reverse();
+        assert_eq!(reversed.to_bytes_vec(), vec![b"DCA".to_vec()]);
+
+        let counts = batch.counts();
+        assert_eq!(counts.len(), 1);
+        assert_eq!(counts[0][b'A' as usize], 1);
+        assert_eq!(counts[0][b'C' as usize], 1);
+        assert_eq!(counts[0][b'D' as usize], 1);
+
+        let entropy = batch.shannon_entropy();
+        assert_eq!(entropy.len(), 1);
     }
 
     #[test]

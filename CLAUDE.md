@@ -37,6 +37,7 @@ Linting: `cargo fmt --all`, `cargo clippy --all-targets -- -D warnings`, `uvx ru
 **Batches:** `SeqBatch<S>` (Vec wrapper) and `RecordBatch<S>` (parallel vecs of ids, descs, sequences) provide batch operations over `SeqRecord<S>`.
 
 **Alignment (`biorust-core/src/align/`):**
+
 - `mod.rs` dispatches to SIMD or scalar based on `traceback` flag and `simd` feature
 - SIMD (score-only): 16-lane `i16x16` via `wide` crate, profile-based DP. `simd_safe_len()` guards against i16 overflow
 - Scalar (with traceback): Full affine gap with bit-packed u8 direction array

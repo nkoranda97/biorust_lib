@@ -16,11 +16,13 @@ Broad audit of biorust (Rust bioinformatics library + PyO3 Python bindings) focu
 **Problem:** Both return `BioError::InvalidChar { ch: '?', pos: 0 }` — never reports the actual bad character or position.
 
 **Files:**
+
 - `biorust-core/src/seq/dna.rs:19-24`
 - `biorust-core/src/seq/protein.rs:13-17`
 - `biorust-core/src/seq/protein.rs:37-41` (ProteinSeq::to_string same issue)
 
 **Change in dna.rs:** Replace:
+
  ```rust
  pub fn new(bytes: Vec<u8>) -> BioResult<Self> {
      if !dna::iupac_alphabet().is_word(bytes.as_slice()) {
@@ -29,7 +31,9 @@ Broad audit of biorust (Rust bioinformatics library + PyO3 Python bindings) focu
      Ok(Self { bytes })
  }
  ```
+
  With:
+
  ```rust
  pub fn new(bytes: Vec<u8>) -> BioResult<Self> {
      let alphabet = dna::iupac_alphabet();
@@ -43,6 +47,7 @@ Broad audit of biorust (Rust bioinformatics library + PyO3 Python bindings) focu
 ```
 
 **With:**
+
 ```rust
 pub fn new(bytes: Vec<u8>) -> BioResult<Self> {
     let alphabet = dna::iupac_alphabet();
@@ -68,18 +73,21 @@ For `ProteinSeq::to_string()`, replace the `InvalidChar { ch: '?', pos: 0 }` wit
 **Problem:** `Scoring::simple()` and `Scoring::with_matrix()` use `assert!(gap_open <= 0.0)` — panics in library code.
 
 **Files:**
+
 - `biorust-core/src/error.rs` — add new variant
 - `biorust-core/src/align/types.rs:70-106` — change constructors
 - `biorust-core/src/align/tests.rs` — add `.unwrap()` to all `Scoring::simple()` calls
 - `biorust-py/src/align.rs` — propagate Result as PyResult
 
 **Step 1 — Add error variant in error.rs:**
+
  ```rust
  #[error("invalid scoring parameters: {msg}")]
 InvalidScoring { msg: String },
 ```
 
 **Step 2 — Change `Scoring::simple()` signature from `-> Self` to `-> BioResult<Self>`:**
+
  ```rust
  pub fn simple(match_score: i16, mismatch_score: i16, gap_open: f32, gap_extend: f32) ->
  BioResult<Self> {
@@ -153,6 +161,7 @@ InvalidScoring { msg: String },
 #### EncodedSeq (`biorust-core/src/align/encode.rs:5-8`)
 
 Change `pub codes` and `pub alphabet_size` to `pub(crate)`. Add:
+
  ```rust
  pub fn codes(&self) -> &[u8] { &self.codes }
 pub fn alphabet_size(&self) -> usize { self.alphabet_size }
@@ -165,18 +174,21 @@ Update `biorust-py/src/align.rs` if it accesses `.codes` or `.alphabet_size` dir
 #### Cigar (`biorust-core/src/align/types.rs:20-21`)
 
 Change `pub ops` to just `ops`. Add:
+
  ```rust
  pub fn ops(&self) -> &[(CigarOp, usize)] { &self.ops }
 pub fn into_ops(self) -> Vec<(CigarOp, usize)> { self.ops }
 ```
 
 **Update:**
+
 - `biorust-core/src/align/scalar_ref.rs` — uses `cigar.ops` in `finalize_cigar()`, change to internal construction
 - `biorust-py/src/align.rs` — `cigar_to_py()` reads `.ops`, change to `.ops()`
 
 #### Scoring (`biorust-core/src/align/types.rs:58-68`)
 
 Change all 9 `pub` fields to `pub(crate)`. The public API is:
+
 - `Scoring::simple()`, `Scoring::with_matrix()` — constructors
 - `Scoring::with_end_gaps()` — builder method
 - `score()`, `gap_open_i16()`, `gap_extend_i16()`, `simd_compatible()`, `max_abs_score()` — existing methods
@@ -184,6 +196,7 @@ Change all 9 `pub` fields to `pub(crate)`. The public API is:
 If Python bindings access fields directly, add getter methods as needed.
 
 **Internal access sites to update:**
+
 - `biorust-core/src/align/scalar_ref.rs` — reads `scoring.gap_open`, `scoring.gap_extend`, `scoring.end_gap`, etc.
 - `biorust-core/src/align/global_simd.rs` and `local_simd.rs` — reads gap penalties
 - `biorust-core/src/align/mod.rs` — reads `scoring.end_gap` for dispatch
@@ -212,6 +225,7 @@ pub fn matrix(&self) -> Option<&[i16]> { self.matrix.as_deref() }
 - Remove `reverse_complements_inplace()` (lines 135-137) — alias of `_in_place`
 
 Check if anything calls them:
+
 - Grep for `from_vec` in the codebase
 - Grep for `reverse_complements_inplace` (without underscore before "in")
 
@@ -224,6 +238,7 @@ Update any call sites to use `new()` / `reverse_complements_in_place()`.
 **File:** `biorust-core/src/seq/record_batch.rs:113-116`
 
 Replace:
+
 ```rust
 pub fn reverse_complements_inplace(&mut self) {
     let out = self.seqs.reverse_complements().into_vec();
@@ -232,6 +247,7 @@ pub fn reverse_complements_inplace(&mut self) {
 ```
 
 With:
+
 ```rust
 pub fn reverse_complements_in_place(&mut self) {
     self.seqs.reverse_complements_in_place();
@@ -328,6 +344,7 @@ Update `src/biorust/_native.pyi` to add `def __iter__(self) -> Iterator[str]: ..
 ### 3.2 Add `__hash__` to DNA and Protein classes
 
 **Files:**
+
 - `biorust-core/src/seq/dna.rs` — add Hash derive: `#[derive(Clone, Debug, PartialEq, Eq, Hash)]`
 - `biorust-core/src/seq/protein.rs` — same
 - `biorust-py/src/dna.rs` — add `__hash__`:
@@ -379,6 +396,7 @@ Add docstrings to the most important types and methods. Priority order:
 ## Verification
 
 After each tier:
+
 - `cargo test -p biorust-core --features simd` — all Rust tests pass
 - `cargo clippy --all-targets -- -D warnings` — no warnings
 - `uv run maturin develop && uv run pytest -q` — Python tests pass

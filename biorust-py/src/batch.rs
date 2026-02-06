@@ -1,6 +1,6 @@
 #![allow(clippy::useless_conversion)]
 
-use pyo3::exceptions::{PyIndexError, PyTypeError};
+use pyo3::exceptions::{PyIndexError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyList, PySlice};
 
@@ -78,6 +78,55 @@ fn collect_protein_seqs(obj: &Bound<'_, PyAny>) -> PyResult<Vec<ProteinSeq>> {
     Ok(out)
 }
 
+fn normalize_slice(
+    len: usize,
+    start: Option<isize>,
+    stop: Option<isize>,
+    step: isize,
+) -> PyResult<(usize, usize, usize)> {
+    if step <= 0 {
+        return Err(PyValueError::new_err("step must be >= 1"));
+    }
+
+    let n = len as isize;
+    let mut s = start.unwrap_or(0);
+    let mut e = stop.unwrap_or(n);
+
+    if s < 0 {
+        s += n;
+    }
+    if e < 0 {
+        e += n;
+    }
+
+    s = s.clamp(0, n);
+    e = e.clamp(0, n);
+
+    Ok((s as usize, e as usize, step as usize))
+}
+
+fn collect_take_indices(obj: &Bound<'_, PyAny>, len: usize) -> PyResult<Vec<usize>> {
+    let iter = obj
+        .iter()
+        .map_err(|_| PyTypeError::new_err("idxs must be an iterable of ints"))?;
+    let mut out = Vec::new();
+    let n = len as isize;
+
+    for item in iter {
+        let idx: isize = item
+            .map_err(|_| PyTypeError::new_err("idxs must be an iterable of ints"))?
+            .extract()
+            .map_err(|_| PyTypeError::new_err("idxs must be an iterable of ints"))?;
+        let idx = if idx < 0 { idx + n } else { idx };
+        if idx < 0 || idx >= n {
+            return Err(PyIndexError::new_err("index out of range"));
+        }
+        out.push(idx as usize);
+    }
+
+    Ok(out)
+}
+
 #[pymethods]
 impl DNABatch {
     #[new]
@@ -151,6 +200,72 @@ impl DNABatch {
 
     fn lengths(&self) -> Vec<usize> {
         self.inner.lengths()
+    }
+
+    fn copy(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+
+    #[pyo3(signature = (start=None, stop=None, step=1))]
+    fn slice(&self, start: Option<isize>, stop: Option<isize>, step: isize) -> PyResult<Self> {
+        let (start, stop, step) = normalize_slice(self.inner.len(), start, stop, step)?;
+        Ok(Self {
+            inner: self.inner.slice(start, stop, step),
+        })
+    }
+
+    fn take(&self, idxs: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let idxs = collect_take_indices(idxs, self.inner.len())?;
+        let out = self
+            .inner
+            .take(&idxs)
+            .map_err(|err| PyIndexError::new_err(err.to_string()))?;
+        Ok(Self { inner: out })
+    }
+
+    #[pyo3(signature = (min_len=None, max_len=None, inplace=false))]
+    fn filter_by_len(
+        &mut self,
+        py: Python<'_>,
+        min_len: Option<usize>,
+        max_len: Option<usize>,
+        inplace: bool,
+    ) -> PyResult<PyObject> {
+        let filtered = self.inner.filter_by_len(min_len, max_len);
+        if inplace {
+            self.inner = filtered;
+            return Ok(py.None());
+        }
+        let out = DNABatch { inner: filtered };
+        Ok(Py::new(py, out)?.to_object(py))
+    }
+
+    fn concat(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let seq = self
+            .inner
+            .concat_all()
+            .map_err(|err| PyValueError::new_err(err.to_string()))?;
+        Ok(Py::new(py, DNA { inner: seq })?.to_object(py))
+    }
+
+    fn count(&self, needle: &Bound<'_, PyAny>) -> PyResult<Vec<usize>> {
+        let dna = needle
+            .extract::<PyRef<'_, DNA>>()
+            .map_err(|_| PyTypeError::new_err("DNABatch.count expects a DNA object"))?;
+        self.inner
+            .count(&dna.inner)
+            .map_err(|err| PyValueError::new_err(err.to_string()))
+    }
+
+    fn contains(&self, needle: &Bound<'_, PyAny>) -> PyResult<Vec<bool>> {
+        let dna = needle
+            .extract::<PyRef<'_, DNA>>()
+            .map_err(|_| PyTypeError::new_err("DNABatch.contains expects a DNA object"))?;
+        self.inner
+            .contains(&dna.inner)
+            .map_err(|err| PyValueError::new_err(err.to_string()))
     }
 
     fn append(&mut self, seq: &Bound<'_, PyAny>) -> PyResult<()> {
@@ -299,6 +414,54 @@ impl RNABatch {
         self.inner.lengths()
     }
 
+    fn copy(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+
+    #[pyo3(signature = (start=None, stop=None, step=1))]
+    fn slice(&self, start: Option<isize>, stop: Option<isize>, step: isize) -> PyResult<Self> {
+        let (start, stop, step) = normalize_slice(self.inner.len(), start, stop, step)?;
+        Ok(Self {
+            inner: self.inner.slice(start, stop, step),
+        })
+    }
+
+    fn take(&self, idxs: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let idxs = collect_take_indices(idxs, self.inner.len())?;
+        let out = self
+            .inner
+            .take(&idxs)
+            .map_err(|err| PyIndexError::new_err(err.to_string()))?;
+        Ok(Self { inner: out })
+    }
+
+    #[pyo3(signature = (min_len=None, max_len=None, inplace=false))]
+    fn filter_by_len(
+        &mut self,
+        py: Python<'_>,
+        min_len: Option<usize>,
+        max_len: Option<usize>,
+        inplace: bool,
+    ) -> PyResult<PyObject> {
+        let filtered = self.inner.filter_by_len(min_len, max_len);
+        if inplace {
+            self.inner = filtered;
+            return Ok(py.None());
+        }
+        let out = RNABatch { inner: filtered };
+        Ok(Py::new(py, out)?.to_object(py))
+    }
+
+    fn concat(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let seq = self
+            .inner
+            .concat_all()
+            .map_err(|err| PyValueError::new_err(err.to_string()))?;
+        Ok(Py::new(py, RNA { inner: seq })?.to_object(py))
+    }
+
     fn append(&mut self, seq: &Bound<'_, PyAny>) -> PyResult<()> {
         let rna = seq
             .extract::<PyRef<'_, RNA>>()
@@ -443,6 +606,72 @@ impl ProteinBatch {
 
     fn lengths(&self) -> Vec<usize> {
         self.inner.lengths()
+    }
+
+    fn copy(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+
+    #[pyo3(signature = (start=None, stop=None, step=1))]
+    fn slice(&self, start: Option<isize>, stop: Option<isize>, step: isize) -> PyResult<Self> {
+        let (start, stop, step) = normalize_slice(self.inner.len(), start, stop, step)?;
+        Ok(Self {
+            inner: self.inner.slice(start, stop, step),
+        })
+    }
+
+    fn take(&self, idxs: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let idxs = collect_take_indices(idxs, self.inner.len())?;
+        let out = self
+            .inner
+            .take(&idxs)
+            .map_err(|err| PyIndexError::new_err(err.to_string()))?;
+        Ok(Self { inner: out })
+    }
+
+    #[pyo3(signature = (min_len=None, max_len=None, inplace=false))]
+    fn filter_by_len(
+        &mut self,
+        py: Python<'_>,
+        min_len: Option<usize>,
+        max_len: Option<usize>,
+        inplace: bool,
+    ) -> PyResult<PyObject> {
+        let filtered = self.inner.filter_by_len(min_len, max_len);
+        if inplace {
+            self.inner = filtered;
+            return Ok(py.None());
+        }
+        let out = ProteinBatch { inner: filtered };
+        Ok(Py::new(py, out)?.to_object(py))
+    }
+
+    fn concat(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let seq = self
+            .inner
+            .concat_all()
+            .map_err(|err| PyValueError::new_err(err.to_string()))?;
+        Ok(Py::new(py, Protein { inner: seq })?.to_object(py))
+    }
+
+    fn count(&self, needle: &Bound<'_, PyAny>) -> PyResult<Vec<usize>> {
+        let protein = needle
+            .extract::<PyRef<'_, Protein>>()
+            .map_err(|_| PyTypeError::new_err("ProteinBatch.count expects a Protein object"))?;
+        self.inner
+            .count(&protein.inner)
+            .map_err(|err| PyValueError::new_err(err.to_string()))
+    }
+
+    fn contains(&self, needle: &Bound<'_, PyAny>) -> PyResult<Vec<bool>> {
+        let protein = needle
+            .extract::<PyRef<'_, Protein>>()
+            .map_err(|_| PyTypeError::new_err("ProteinBatch.contains expects a Protein object"))?;
+        self.inner
+            .contains(&protein.inner)
+            .map_err(|err| PyValueError::new_err(err.to_string()))
     }
 
     fn append(&mut self, seq: &Bound<'_, PyAny>) -> PyResult<()> {

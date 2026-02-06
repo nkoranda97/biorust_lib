@@ -1,5 +1,8 @@
-use crate::error::BioResult;
+use crate::error::{BioError, BioResult};
+use crate::seq::bytes::IntoNeedle;
+use crate::seq::dna::DnaSeq;
 use crate::seq::dna::ReverseComplement;
+use crate::seq::protein::ProteinSeq;
 use crate::seq::traits::SeqBytes;
 use std::ops::Index;
 
@@ -35,6 +38,84 @@ impl<S: SeqBytes> SeqBatch<S> {
 
     pub fn iter(&self) -> impl Iterator<Item = &S> {
         self.seqs.iter()
+    }
+
+    pub fn slice(&self, start: usize, stop: usize, step: usize) -> Self {
+        assert!(step >= 1, "step must be >= 1");
+
+        let len = self.seqs.len();
+        let start = start.min(len);
+        let stop = stop.min(len);
+
+        if start >= stop {
+            return Self { seqs: Vec::new() };
+        }
+
+        let mut out = Vec::with_capacity((stop - start).div_ceil(step));
+        let mut i = start;
+        while i < stop {
+            out.push(self.seqs[i].clone());
+            i += step;
+        }
+
+        Self { seqs: out }
+    }
+
+    pub fn take(&self, idxs: &[usize]) -> BioResult<Self> {
+        let len = self.seqs.len();
+        let mut out = Vec::with_capacity(idxs.len());
+
+        for &idx in idxs {
+            if idx >= len {
+                return Err(BioError::BatchIndexOutOfRange { index: idx, len });
+            }
+            out.push(self.seqs[idx].clone());
+        }
+
+        Ok(Self { seqs: out })
+    }
+
+    pub fn filter_by_len(&self, min_len: Option<usize>, max_len: Option<usize>) -> Self {
+        let min_len = min_len.unwrap_or(0);
+        let max_len = max_len.unwrap_or(usize::MAX);
+
+        if min_len > max_len {
+            return Self { seqs: Vec::new() };
+        }
+
+        let mut out = Vec::with_capacity(self.seqs.len());
+        for seq in &self.seqs {
+            let len = seq.as_bytes().len();
+            if len >= min_len && len <= max_len {
+                out.push(seq.clone());
+            }
+        }
+        Self { seqs: out }
+    }
+
+    pub fn concat_all(&self) -> BioResult<S> {
+        if self.seqs.is_empty() {
+            return Err(BioError::EmptyBatch);
+        }
+
+        let total_len: usize = self.seqs.iter().map(|seq| seq.as_bytes().len()).sum();
+        let mut out = Vec::with_capacity(total_len);
+        for seq in &self.seqs {
+            out.extend_from_slice(seq.as_bytes());
+        }
+
+        S::from_bytes(out)
+    }
+
+    pub fn map<F>(&self, f: F) -> BioResult<Self>
+    where
+        F: Fn(&S) -> S,
+    {
+        let mut out = Vec::with_capacity(self.seqs.len());
+        for seq in &self.seqs {
+            out.push(f(seq));
+        }
+        Ok(Self { seqs: out })
     }
 
     pub fn push(&mut self, s: S) {
@@ -75,6 +156,8 @@ impl<S: SeqBytes> SeqBatch<S> {
             .collect()
     }
 
+    /// Map over raw bytes and re-validate sequences.
+    /// Prefer `map` for transformations that don't need bytes access.
     pub fn map_bytes<F>(&self, f: F) -> BioResult<Self>
     where
         F: Fn(&[u8]) -> Vec<u8>,
@@ -129,9 +212,78 @@ where
     }
 }
 
+pub trait CountContains {
+    fn count<'a, N>(&'a self, sub: N) -> BioResult<usize>
+    where
+        N: IntoNeedle<'a>;
+    fn contains<'a, N>(&'a self, sub: N) -> BioResult<bool>
+    where
+        N: IntoNeedle<'a>;
+}
+
+impl CountContains for DnaSeq {
+    fn count<'a, N>(&'a self, sub: N) -> BioResult<usize>
+    where
+        N: IntoNeedle<'a>,
+    {
+        DnaSeq::count(self, sub)
+    }
+
+    fn contains<'a, N>(&'a self, sub: N) -> BioResult<bool>
+    where
+        N: IntoNeedle<'a>,
+    {
+        DnaSeq::contains(self, sub)
+    }
+}
+
+impl CountContains for ProteinSeq {
+    fn count<'a, N>(&'a self, sub: N) -> BioResult<usize>
+    where
+        N: IntoNeedle<'a>,
+    {
+        ProteinSeq::count(self, sub)
+    }
+
+    fn contains<'a, N>(&'a self, sub: N) -> BioResult<bool>
+    where
+        N: IntoNeedle<'a>,
+    {
+        ProteinSeq::contains(self, sub)
+    }
+}
+
+impl<S> SeqBatch<S>
+where
+    S: SeqBytes + CountContains,
+{
+    pub fn count<'a, N>(&'a self, sub: N) -> BioResult<Vec<usize>>
+    where
+        N: IntoNeedle<'a> + Copy,
+    {
+        let mut out = Vec::with_capacity(self.seqs.len());
+        for seq in &self.seqs {
+            out.push(seq.count(sub)?);
+        }
+        Ok(out)
+    }
+
+    pub fn contains<'a, N>(&'a self, sub: N) -> BioResult<Vec<bool>>
+    where
+        N: IntoNeedle<'a> + Copy,
+    {
+        let mut out = Vec::with_capacity(self.seqs.len());
+        for seq in &self.seqs {
+            out.push(seq.contains(sub)?);
+        }
+        Ok(out)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::BioError;
     use crate::seq::dna::DnaSeq;
 
     #[test]
@@ -246,6 +398,81 @@ mod tests {
         let err = batch.map_bytes_in_place(|_| b"AC#".to_vec());
         assert!(err.is_err());
         assert_eq!(batch.to_bytes_vec(), vec![b"AC".to_vec()]);
+    }
+
+    #[test]
+    fn batch_slice_take_filter_concat_map() {
+        let seqs = vec![
+            DnaSeq::new(b"A".to_vec()).unwrap(),
+            DnaSeq::new(b"CC".to_vec()).unwrap(),
+            DnaSeq::new(b"GGG".to_vec()).unwrap(),
+            DnaSeq::new(b"TTTT".to_vec()).unwrap(),
+        ];
+        let batch = SeqBatch::new(seqs);
+
+        let sliced = batch.slice(1, 4, 2);
+        assert_eq!(
+            sliced.to_bytes_vec(),
+            vec![b"CC".to_vec(), b"TTTT".to_vec()]
+        );
+
+        let taken = batch.take(&[2, 0]).unwrap();
+        assert_eq!(taken.to_bytes_vec(), vec![b"GGG".to_vec(), b"A".to_vec()]);
+
+        let filtered = batch.filter_by_len(Some(2), Some(3));
+        assert_eq!(
+            filtered.to_bytes_vec(),
+            vec![b"CC".to_vec(), b"GGG".to_vec()]
+        );
+
+        let concatenated = batch.concat_all().unwrap();
+        assert_eq!(concatenated.as_bytes(), b"ACCGGGTTTT");
+
+        let mapped = batch
+            .map(|seq| {
+                let mut out = seq.as_bytes().to_vec();
+                out.push(b'A');
+                DnaSeq::new(out).unwrap()
+            })
+            .unwrap();
+        assert_eq!(
+            mapped.to_bytes_vec(),
+            vec![
+                b"AA".to_vec(),
+                b"CCA".to_vec(),
+                b"GGGA".to_vec(),
+                b"TTTTA".to_vec()
+            ]
+        );
+    }
+
+    #[test]
+    fn batch_take_out_of_range() {
+        let batch = SeqBatch::new(vec![DnaSeq::new(b"AC".to_vec()).unwrap()]);
+        let err = batch.take(&[1]).unwrap_err();
+        assert!(matches!(err, BioError::BatchIndexOutOfRange { .. }));
+    }
+
+    #[test]
+    fn batch_concat_empty() {
+        let batch: SeqBatch<DnaSeq> = SeqBatch::new(Vec::new());
+        let err = batch.concat_all().unwrap_err();
+        assert!(matches!(err, BioError::EmptyBatch));
+    }
+
+    #[test]
+    fn batch_count_contains() {
+        let seqs = vec![
+            DnaSeq::new(b"AAC".to_vec()).unwrap(),
+            DnaSeq::new(b"TT".to_vec()).unwrap(),
+        ];
+        let batch = SeqBatch::new(seqs);
+
+        let counts = batch.count(b"A").unwrap();
+        assert_eq!(counts, vec![2, 0]);
+
+        let contains = batch.contains(b"TT").unwrap();
+        assert_eq!(contains, vec![false, true]);
     }
 
     #[test]

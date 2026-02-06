@@ -40,6 +40,12 @@ pub enum BioError {
         seqs: usize,
     },
 
+    #[error("batch index {index} out of range (len={len})")]
+    BatchIndexOutOfRange { index: usize, len: usize },
+
+    #[error("empty batch")]
+    EmptyBatch,
+
     #[error("csv missing column '{name}' in {path}. headers: {headers:?}")]
     CsvMissingColumn {
         name: String,

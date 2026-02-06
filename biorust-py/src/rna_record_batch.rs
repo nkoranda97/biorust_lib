@@ -4,22 +4,23 @@ use pyo3::exceptions::{PyIndexError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyModule, PySlice};
 
-use crate::batch::ProteinBatch;
-use crate::protein_record::ProteinRecord;
+use crate::batch::RNABatch;
 use crate::report::SkippedRecord;
+use crate::rna_record::RNARecord;
 use biorust_core::seq::batch::SeqBatch;
-use biorust_core::seq::protein::ProteinSeq;
 use biorust_core::seq::record::SeqRecord;
 use biorust_core::seq::record_batch::RecordBatch;
+use biorust_core::seq::rna::RnaSeq;
 
+#[allow(clippy::upper_case_acronyms)]
 #[pyclass]
-pub struct ProteinRecordBatch {
-    pub(crate) inner: RecordBatch<ProteinSeq>,
+pub struct RNARecordBatch {
+    pub(crate) inner: RecordBatch<RnaSeq>,
     pub(crate) skipped: Vec<SkippedRecord>,
 }
 
-fn collect_records(obj: &Bound<'_, PyAny>) -> PyResult<Vec<SeqRecord<ProteinSeq>>> {
-    if let Ok(batch) = obj.extract::<PyRef<'_, ProteinRecordBatch>>() {
+fn collect_records(obj: &Bound<'_, PyAny>) -> PyResult<Vec<SeqRecord<RnaSeq>>> {
+    if let Ok(batch) = obj.extract::<PyRef<'_, RNARecordBatch>>() {
         let ids = batch.inner.ids().to_vec();
         let descs = batch.inner.descs().to_vec();
         let seqs = batch.inner.seqs().as_slice().to_vec();
@@ -41,16 +42,16 @@ fn collect_records(obj: &Bound<'_, PyAny>) -> PyResult<Vec<SeqRecord<ProteinSeq>
     let mut out = Vec::new();
     for item in obj.iter()? {
         let item = item?;
-        let record = item.extract::<PyRef<'_, ProteinRecord>>().map_err(|_| {
-            PyTypeError::new_err("ProteinRecordBatch expects ProteinRecord objects only")
-        })?;
+        let record = item
+            .extract::<PyRef<'_, RNARecord>>()
+            .map_err(|_| PyTypeError::new_err("RNARecordBatch expects RNARecord objects only"))?;
         out.push(record.inner.clone());
     }
     Ok(out)
 }
 
 #[pymethods]
-impl ProteinRecordBatch {
+impl RNARecordBatch {
     #[new]
     fn new(records: &Bound<'_, PyAny>) -> PyResult<Self> {
         let records = collect_records(records)?;
@@ -98,7 +99,7 @@ impl ProteinRecordBatch {
                 }
             }
 
-            let batch = ProteinRecordBatch {
+            let batch = RNARecordBatch {
                 inner: RecordBatch::new_with_meta(ids, descs, seqs, features, annotations)
                     .map_err(|e| PyTypeError::new_err(e.to_string()))?,
                 skipped: self.skipped.clone(),
@@ -117,7 +118,7 @@ impl ProteinRecordBatch {
         }
 
         let i = i as usize;
-        let record = ProteinRecord {
+        let record = RNARecord {
             inner: SeqRecord {
                 id: self.inner.ids()[i].clone(),
                 desc: self.inner.descs()[i].clone(),
@@ -146,15 +147,29 @@ impl ProteinRecordBatch {
             .collect()
     }
 
-    fn seqs(&self) -> ProteinBatch {
-        let seqs: Vec<ProteinSeq> = self.inner.seqs().as_slice().to_vec();
-        ProteinBatch {
+    fn seqs(&self) -> RNABatch {
+        let seqs: Vec<RnaSeq> = self.inner.seqs().as_slice().to_vec();
+        RNABatch {
             inner: SeqBatch::new(seqs),
         }
+    }
+
+    #[pyo3(signature = (inplace=false))]
+    fn reverse_complements(&mut self, py: Python<'_>, inplace: bool) -> PyResult<PyObject> {
+        if inplace {
+            self.inner.reverse_complements_in_place();
+            return Ok(py.None());
+        }
+
+        let out = RNARecordBatch {
+            inner: self.inner.reverse_complements(),
+            skipped: self.skipped.clone(),
+        };
+        Ok(Py::new(py, out)?.to_object(py))
     }
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<ProteinRecordBatch>()?;
+    m.add_class::<RNARecordBatch>()?;
     Ok(())
 }

@@ -3,7 +3,7 @@ use crate::seq::record::SeqRecord;
 use crate::seq::record_batch::RecordBatch;
 use crate::seq::traits::SeqBytes;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Cursor};
+use std::io::{BufRead, BufReader, BufWriter, Cursor, Write};
 use std::marker::PhantomData;
 use std::path::Path;
 
@@ -102,7 +102,11 @@ impl<R: BufRead, S: SeqBytes> Iterator for FastaRecords<R, S> {
         };
         self.seq_buf = Vec::with_capacity(capacity);
 
-        Some(Ok(SeqRecord { id, desc, seq }))
+        let record = match desc {
+            Some(desc) => SeqRecord::new(id, seq).with_desc(desc),
+            None => SeqRecord::new(id, seq),
+        };
+        Some(Ok(record))
     }
 }
 
@@ -153,6 +157,62 @@ pub fn read_fasta_batch_from_bytes<S: SeqBytes>(data: &[u8]) -> BioResult<Record
     read_fasta_batch_from_reader(reader)
 }
 
+pub fn write_fasta_records_to_writer<W: Write, S: SeqBytes>(
+    writer: W,
+    records: &[SeqRecord<S>],
+    line_width: usize,
+) -> BioResult<()> {
+    let mut writer = BufWriter::new(writer);
+    for record in records {
+        write_fasta_record(
+            &mut writer,
+            &record.id,
+            record.desc.as_deref(),
+            record.seq.as_bytes(),
+            line_width,
+        )?;
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+pub fn write_fasta_records_to_path<S: SeqBytes>(
+    path: impl AsRef<Path>,
+    records: &[SeqRecord<S>],
+    line_width: usize,
+) -> BioResult<()> {
+    let file = File::create(path)?;
+    write_fasta_records_to_writer(file, records, line_width)
+}
+
+pub fn write_fasta_batch_to_writer<W: Write, S: SeqBytes>(
+    writer: W,
+    batch: &RecordBatch<S>,
+    line_width: usize,
+) -> BioResult<()> {
+    let mut writer = BufWriter::new(writer);
+    for i in 0..batch.len() {
+        let id = batch.id(i).expect("record batch length is consistent");
+        let desc = batch.descs().get(i).and_then(|d| d.as_deref());
+        let seq = batch
+            .seq(i)
+            .expect("record batch length is consistent")
+            .as_bytes();
+        write_fasta_record(&mut writer, id, desc, seq, line_width)?;
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+pub fn write_fasta_batch_to_path<S: SeqBytes>(
+    path: impl AsRef<Path>,
+    batch: &RecordBatch<S>,
+    line_width: usize,
+) -> BioResult<()> {
+    let file = File::create(path)?;
+    write_fasta_batch_to_writer(file, batch, line_width)
+}
+
 fn parse_header(header_line: &str, line_no: usize) -> BioResult<(Box<str>, Option<Box<str>>)> {
     let header = header_line.strip_prefix('>').ok_or(BioError::FastaFormat {
         msg: "expected header line starting with '>'",
@@ -178,6 +238,56 @@ fn parse_header(header_line: &str, line_no: usize) -> BioResult<(Box<str>, Optio
     };
 
     Ok((id.into(), desc.map(|s| s.into())))
+}
+
+fn write_fasta_record<W: Write>(
+    writer: &mut W,
+    id: &str,
+    desc: Option<&str>,
+    seq: &[u8],
+    line_width: usize,
+) -> BioResult<()> {
+    writer.write_all(b">")?;
+    write_header_field(writer, id)?;
+    if let Some(desc) = desc {
+        if !desc.is_empty() {
+            writer.write_all(b" ")?;
+            write_header_field(writer, desc)?;
+        }
+    }
+    writer.write_all(b"\n")?;
+
+    if seq.is_empty() {
+        writer.write_all(b"\n")?;
+        return Ok(());
+    }
+
+    if line_width == 0 {
+        writer.write_all(seq)?;
+        writer.write_all(b"\n")?;
+        return Ok(());
+    }
+
+    for chunk in seq.chunks(line_width) {
+        writer.write_all(chunk)?;
+        writer.write_all(b"\n")?;
+    }
+    Ok(())
+}
+
+fn write_header_field<W: Write>(writer: &mut W, value: &str) -> BioResult<()> {
+    let bytes = value.as_bytes();
+    if bytes.contains(&b'\n') || bytes.contains(&b'\r') {
+        for &b in bytes {
+            match b {
+                b'\n' | b'\r' => writer.write_all(b" ")?,
+                _ => writer.write_all(&[b])?,
+            }
+        }
+    } else {
+        writer.write_all(bytes)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

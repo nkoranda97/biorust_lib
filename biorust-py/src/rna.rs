@@ -5,30 +5,30 @@ use pyo3::exceptions::{PyOverflowError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule, PyString, PyTuple};
 
+use crate::dna::DNA;
 use crate::protein::Protein;
-use crate::rna::RNA;
 use crate::seq_shared;
-use crate::utils::{self, PyDnaNeedle};
-use biorust_core::seq::dna::DnaSeq;
+use crate::utils::{self, PyRnaNeedle};
+use biorust_core::seq::rna::RnaSeq;
 
 #[allow(clippy::upper_case_acronyms)]
 #[pyclass(frozen)]
-pub struct DNA {
-    pub(crate) inner: DnaSeq,
+pub struct RNA {
+    pub(crate) inner: RnaSeq,
 }
 
 #[pymethods]
-impl DNA {
+impl RNA {
     #[new]
     fn new(seq: &Bound<'_, PyAny>) -> PyResult<Self> {
         let bytes: Vec<u8> = if let Ok(s) = seq.downcast::<PyString>() {
             s.to_str()?.as_bytes().to_vec()
         } else {
             seq.extract::<Vec<u8>>()
-                .map_err(|_| PyValueError::new_err("DNA() expects str or bytes-like input"))?
+                .map_err(|_| PyValueError::new_err("RNA() expects str or bytes-like input"))?
         };
 
-        let inner = DnaSeq::new(bytes).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let inner = RnaSeq::new(bytes).map_err(|e| PyValueError::new_err(e.to_string()))?;
         Ok(Self { inner })
     }
 
@@ -44,9 +44,9 @@ impl DNA {
         }
     }
 
-    fn transcribe(&self) -> RNA {
-        RNA {
-            inner: self.inner.transcribe(),
+    fn back_transcribe(&self) -> DNA {
+        DNA {
+            inner: self.inner.back_transcribe(),
         }
     }
 
@@ -69,7 +69,7 @@ impl DNA {
         self.as_bytes().len()
     }
 
-    fn __richcmp__(&self, other: PyRef<'_, DNA>, op: CompareOp) -> PyResult<bool> {
+    fn __richcmp__(&self, other: PyRef<'_, RNA>, op: CompareOp) -> PyResult<bool> {
         let other = other.as_bytes();
         match op {
             CompareOp::Eq => Ok(self.as_bytes() == other),
@@ -90,7 +90,7 @@ impl DNA {
     }
 
     fn __repr__(&self) -> PyResult<String> {
-        Ok(seq_shared::seq_repr(self.as_bytes(), "DNA"))
+        Ok(seq_shared::seq_repr(self.as_bytes(), "RNA"))
     }
 
     fn __hash__(&self) -> u64 {
@@ -100,8 +100,8 @@ impl DNA {
         hasher.finish()
     }
 
-    fn __iter__(slf: PyRef<'_, Self>) -> DNAIterator {
-        DNAIterator {
+    fn __iter__(slf: PyRef<'_, Self>) -> RNAIterator {
+        RNAIterator {
             bytes: slf.as_bytes().to_vec(),
             index: 0,
         }
@@ -109,20 +109,20 @@ impl DNA {
 
     fn __getitem__<'py>(&self, py: Python<'py>, index: &Bound<'py, PyAny>) -> PyResult<PyObject> {
         let make = |out: Vec<u8>| -> PyResult<PyObject> {
-            let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
-            Ok(Py::new(py, DNA { inner })?.to_object(py))
+            let inner = RnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            Ok(Py::new(py, RNA { inner })?.to_object(py))
         };
 
         seq_shared::seq_getitem(self.as_bytes(), index, make)
     }
 
-    fn __add__(&self, other: PyRef<'_, DNA>) -> PyResult<Self> {
-        let inner = concat_dna_bytes(self.as_bytes(), other.as_bytes())?;
+    fn __add__(&self, other: PyRef<'_, RNA>) -> PyResult<Self> {
+        let inner = concat_rna_bytes(self.as_bytes(), other.as_bytes())?;
         Ok(Self { inner })
     }
 
     fn __mul__(&self, num: isize) -> PyResult<Self> {
-        let inner = repeat_dna_bytes(self.as_bytes(), num)?;
+        let inner = repeat_rna_bytes(self.as_bytes(), num)?;
         Ok(Self { inner })
     }
 
@@ -131,36 +131,36 @@ impl DNA {
     }
 
     fn count(&self, sub: &Bound<'_, PyAny>) -> PyResult<usize> {
-        let needle = utils::extract_dna_needle(sub)?;
+        let needle = utils::extract_rna_needle(sub)?;
 
         let res = match needle {
-            PyDnaNeedle::Dna(other) => self.inner.count(&other.inner),
-            PyDnaNeedle::Bytes(bytes) => self.inner.count(bytes.as_slice()),
-            PyDnaNeedle::Byte(b) => self.inner.count(b),
+            PyRnaNeedle::Rna(other) => self.inner.count(&other.inner),
+            PyRnaNeedle::Bytes(bytes) => self.inner.count(bytes.as_slice()),
+            PyRnaNeedle::Byte(b) => self.inner.count(b),
         };
 
         res.map_err(|e| PyValueError::new_err(e.to_string()))
     }
 
     fn count_overlap(&self, sub: &Bound<'_, PyAny>) -> PyResult<usize> {
-        let needle = utils::extract_dna_needle(sub)?;
+        let needle = utils::extract_rna_needle(sub)?;
 
         let res = match needle {
-            PyDnaNeedle::Dna(other) => self.inner.count_overlap(&other.inner),
-            PyDnaNeedle::Bytes(bytes) => self.inner.count_overlap(bytes.as_slice()),
-            PyDnaNeedle::Byte(b) => self.inner.count_overlap(b),
+            PyRnaNeedle::Rna(other) => self.inner.count_overlap(&other.inner),
+            PyRnaNeedle::Bytes(bytes) => self.inner.count_overlap(bytes.as_slice()),
+            PyRnaNeedle::Byte(b) => self.inner.count_overlap(b),
         };
 
         res.map_err(|e| PyValueError::new_err(e.to_string()))
     }
 
     fn __contains__(&self, sub: &Bound<'_, PyAny>) -> PyResult<bool> {
-        let needle = utils::extract_dna_needle(sub)?;
+        let needle = utils::extract_rna_needle(sub)?;
 
         let res = match needle {
-            PyDnaNeedle::Dna(other) => self.inner.contains(&other.inner),
-            PyDnaNeedle::Bytes(bytes) => self.inner.contains(bytes.as_slice()),
-            PyDnaNeedle::Byte(b) => self.inner.contains(b),
+            PyRnaNeedle::Rna(other) => self.inner.contains(&other.inner),
+            PyRnaNeedle::Bytes(bytes) => self.inner.contains(bytes.as_slice()),
+            PyRnaNeedle::Byte(b) => self.inner.contains(b),
         };
 
         res.map_err(|e| PyValueError::new_err(e.to_string()))
@@ -174,14 +174,14 @@ impl DNA {
         end: Option<isize>,
     ) -> PyResult<bool> {
         let window = seq_shared::startswith_window(self.as_bytes(), start, end);
-        let matches = |needle: PyDnaNeedle<'_>| -> bool {
-            let needle = dna_needle_bytes(&needle);
+        let matches = |needle: PyRnaNeedle<'_>| -> bool {
+            let needle = rna_needle_bytes(&needle);
             seq_shared::needle_starts_with(window, needle)
         };
 
         if let Ok(tuple) = prefix.downcast::<PyTuple>() {
             for item in tuple.iter() {
-                let needle = utils::extract_dna_needle(&item)?;
+                let needle = utils::extract_rna_needle(&item)?;
                 if matches(needle) {
                     return Ok(true);
                 }
@@ -189,7 +189,7 @@ impl DNA {
             return Ok(false);
         }
 
-        let needle = utils::extract_dna_needle(prefix)?;
+        let needle = utils::extract_rna_needle(prefix)?;
         Ok(matches(needle))
     }
 
@@ -201,14 +201,14 @@ impl DNA {
         end: Option<isize>,
     ) -> PyResult<bool> {
         let window = seq_shared::startswith_window(self.as_bytes(), start, end);
-        let matches = |needle: PyDnaNeedle<'_>| -> bool {
-            let needle = dna_needle_bytes(&needle);
+        let matches = |needle: PyRnaNeedle<'_>| -> bool {
+            let needle = rna_needle_bytes(&needle);
             seq_shared::needle_ends_with(window, needle)
         };
 
         if let Ok(tuple) = suffix.downcast::<PyTuple>() {
             for item in tuple.iter() {
-                let needle = utils::extract_dna_needle(&item)?;
+                let needle = utils::extract_rna_needle(&item)?;
                 if matches(needle) {
                     return Ok(true);
                 }
@@ -216,7 +216,7 @@ impl DNA {
             return Ok(false);
         }
 
-        let needle = utils::extract_dna_needle(suffix)?;
+        let needle = utils::extract_rna_needle(suffix)?;
         Ok(matches(needle))
     }
 
@@ -226,19 +226,19 @@ impl DNA {
         py: Python<'py>,
         sep: Option<&Bound<'py, PyAny>>,
         maxsplit: isize,
-    ) -> PyResult<Vec<Py<DNA>>> {
+    ) -> PyResult<Vec<Py<RNA>>> {
         let bytes = self.as_bytes();
         let parts = match sep {
             None => seq_shared::split_on_whitespace(bytes, maxsplit),
             Some(obj) => {
-                let needle = utils::extract_dna_needle(obj)?;
-                seq_shared::split_on_sep(bytes, dna_needle_bytes(&needle), maxsplit)?
+                let needle = utils::extract_rna_needle(obj)?;
+                seq_shared::split_on_sep(bytes, rna_needle_bytes(&needle), maxsplit)?
             }
         };
 
         seq_shared::list_from_parts(parts, |part| {
-            let inner = DnaSeq::new(part).map_err(|e| PyValueError::new_err(e.to_string()))?;
-            Py::new(py, DNA { inner })
+            let inner = RnaSeq::new(part).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            Py::new(py, RNA { inner })
         })
     }
 
@@ -248,19 +248,19 @@ impl DNA {
         py: Python<'py>,
         sep: Option<&Bound<'py, PyAny>>,
         maxsplit: isize,
-    ) -> PyResult<Vec<Py<DNA>>> {
+    ) -> PyResult<Vec<Py<RNA>>> {
         let bytes = self.as_bytes();
         let parts = match sep {
             None => seq_shared::rsplit_on_whitespace(bytes, maxsplit),
             Some(obj) => {
-                let needle = utils::extract_dna_needle(obj)?;
-                seq_shared::rsplit_on_sep(bytes, dna_needle_bytes(&needle), maxsplit)?
+                let needle = utils::extract_rna_needle(obj)?;
+                seq_shared::rsplit_on_sep(bytes, rna_needle_bytes(&needle), maxsplit)?
             }
         };
 
         seq_shared::list_from_parts(parts, |part| {
-            let inner = DnaSeq::new(part).map_err(|e| PyValueError::new_err(e.to_string()))?;
-            Py::new(py, DNA { inner })
+            let inner = RnaSeq::new(part).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            Py::new(py, RNA { inner })
         })
     }
 
@@ -268,12 +268,12 @@ impl DNA {
     fn strip(&self, chars: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
         let bytes = self.as_bytes();
         let needle = match chars {
-            Some(obj) => Some(utils::extract_dna_needle(obj)?),
+            Some(obj) => Some(utils::extract_rna_needle(obj)?),
             None => None,
         };
-        let needle = needle.as_ref().map(dna_needle_bytes);
+        let needle = needle.as_ref().map(rna_needle_bytes);
         let (start, end) = seq_shared::trim_range(bytes, needle, true, true)?;
-        let inner = DnaSeq::new(bytes[start..end].to_vec())
+        let inner = RnaSeq::new(bytes[start..end].to_vec())
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         Ok(Self { inner })
     }
@@ -282,12 +282,12 @@ impl DNA {
     fn lstrip(&self, chars: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
         let bytes = self.as_bytes();
         let needle = match chars {
-            Some(obj) => Some(utils::extract_dna_needle(obj)?),
+            Some(obj) => Some(utils::extract_rna_needle(obj)?),
             None => None,
         };
-        let needle = needle.as_ref().map(dna_needle_bytes);
+        let needle = needle.as_ref().map(rna_needle_bytes);
         let (start, end) = seq_shared::trim_range(bytes, needle, true, false)?;
-        let inner = DnaSeq::new(bytes[start..end].to_vec())
+        let inner = RnaSeq::new(bytes[start..end].to_vec())
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         Ok(Self { inner })
     }
@@ -296,19 +296,19 @@ impl DNA {
     fn rstrip(&self, chars: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
         let bytes = self.as_bytes();
         let needle = match chars {
-            Some(obj) => Some(utils::extract_dna_needle(obj)?),
+            Some(obj) => Some(utils::extract_rna_needle(obj)?),
             None => None,
         };
-        let needle = needle.as_ref().map(dna_needle_bytes);
+        let needle = needle.as_ref().map(rna_needle_bytes);
         let (start, end) = seq_shared::trim_range(bytes, needle, false, true)?;
-        let inner = DnaSeq::new(bytes[start..end].to_vec())
+        let inner = RnaSeq::new(bytes[start..end].to_vec())
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         Ok(Self { inner })
     }
 
     fn upper(&self) -> PyResult<Self> {
         let make = |out: Vec<u8>| -> PyResult<Self> {
-            let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            let inner = RnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
             Ok(Self { inner })
         };
         seq_shared::seq_upper(self.as_bytes(), make)
@@ -316,7 +316,7 @@ impl DNA {
 
     fn lower(&self) -> PyResult<Self> {
         let make = |out: Vec<u8>| -> PyResult<Self> {
-            let inner = DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            let inner = RnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))?;
             Ok(Self { inner })
         };
         seq_shared::seq_lower(self.as_bytes(), make)
@@ -330,12 +330,12 @@ impl DNA {
         end: Option<isize>,
     ) -> PyResult<isize> {
         let (s, e) = utils::normalize_range(self.as_bytes().len(), start, end);
-        let needle = utils::extract_dna_needle(sub)?;
+        let needle = utils::extract_rna_needle(sub)?;
 
         let res = match needle {
-            PyDnaNeedle::Dna(other) => self.inner.find(&other.inner, s, e),
-            PyDnaNeedle::Bytes(bytes) => self.inner.find(bytes.as_slice(), s, e),
-            PyDnaNeedle::Byte(b) => self.inner.find(b, s, e),
+            PyRnaNeedle::Rna(other) => self.inner.find(&other.inner, s, e),
+            PyRnaNeedle::Bytes(bytes) => self.inner.find(bytes.as_slice(), s, e),
+            PyRnaNeedle::Byte(b) => self.inner.find(b, s, e),
         };
 
         match res.map_err(|err| PyValueError::new_err(err.to_string()))? {
@@ -352,12 +352,12 @@ impl DNA {
         end: Option<isize>,
     ) -> PyResult<isize> {
         let (s, e) = utils::normalize_range(self.as_bytes().len(), start, end);
-        let needle = utils::extract_dna_needle(sub)?;
+        let needle = utils::extract_rna_needle(sub)?;
 
         let res = match needle {
-            PyDnaNeedle::Dna(other) => self.inner.find(&other.inner, s, e),
-            PyDnaNeedle::Bytes(bytes) => self.inner.find(bytes.as_slice(), s, e),
-            PyDnaNeedle::Byte(b) => self.inner.find(b, s, e),
+            PyRnaNeedle::Rna(other) => self.inner.find(&other.inner, s, e),
+            PyRnaNeedle::Bytes(bytes) => self.inner.find(bytes.as_slice(), s, e),
+            PyRnaNeedle::Byte(b) => self.inner.find(b, s, e),
         };
 
         match res.map_err(|err| PyValueError::new_err(err.to_string()))? {
@@ -374,12 +374,12 @@ impl DNA {
         end: Option<isize>,
     ) -> PyResult<isize> {
         let (s, e) = utils::normalize_range(self.as_bytes().len(), start, end);
-        let needle = utils::extract_dna_needle(sub)?;
+        let needle = utils::extract_rna_needle(sub)?;
 
         let res = match needle {
-            PyDnaNeedle::Dna(other) => self.inner.rfind(&other.inner, s, e),
-            PyDnaNeedle::Bytes(bytes) => self.inner.rfind(bytes.as_slice(), s, e),
-            PyDnaNeedle::Byte(b) => self.inner.rfind(b, s, e),
+            PyRnaNeedle::Rna(other) => self.inner.rfind(&other.inner, s, e),
+            PyRnaNeedle::Bytes(bytes) => self.inner.rfind(bytes.as_slice(), s, e),
+            PyRnaNeedle::Byte(b) => self.inner.rfind(b, s, e),
         };
 
         match res.map_err(|err| PyValueError::new_err(err.to_string()))? {
@@ -396,12 +396,12 @@ impl DNA {
         end: Option<isize>,
     ) -> PyResult<isize> {
         let (s, e) = utils::normalize_range(self.as_bytes().len(), start, end);
-        let needle = utils::extract_dna_needle(sub)?;
+        let needle = utils::extract_rna_needle(sub)?;
 
         let res = match needle {
-            PyDnaNeedle::Dna(other) => self.inner.rfind(&other.inner, s, e),
-            PyDnaNeedle::Bytes(bytes) => self.inner.rfind(bytes.as_slice(), s, e),
-            PyDnaNeedle::Byte(b) => self.inner.rfind(b, s, e),
+            PyRnaNeedle::Rna(other) => self.inner.rfind(&other.inner, s, e),
+            PyRnaNeedle::Bytes(bytes) => self.inner.rfind(bytes.as_slice(), s, e),
+            PyRnaNeedle::Byte(b) => self.inner.rfind(b, s, e),
         };
 
         match res.map_err(|err| PyValueError::new_err(err.to_string()))? {
@@ -412,13 +412,13 @@ impl DNA {
 }
 
 #[pyclass]
-struct DNAIterator {
+struct RNAIterator {
     bytes: Vec<u8>,
     index: usize,
 }
 
 #[pymethods]
-impl DNAIterator {
+impl RNAIterator {
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
@@ -434,46 +434,30 @@ impl DNAIterator {
     }
 }
 
-#[pyfunction]
-fn complement(seq: &Bound<'_, PyAny>) -> PyResult<DNA> {
-    if let Ok(dna) = seq.extract::<PyRef<'_, DNA>>() {
-        return Ok(DNA {
-            inner: dna.inner.complement(),
-        });
-    }
-
-    let bytes = utils::extract_dna_bytes(seq)?;
-    let inner = DnaSeq::new(bytes).map_err(|e| PyValueError::new_err(e.to_string()))?;
-    Ok(DNA {
-        inner: inner.complement(),
-    })
-}
-
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<DNA>()?;
-    m.add_class::<DNAIterator>()?;
-    m.add_function(wrap_pyfunction!(complement, m)?)?;
+    m.add_class::<RNA>()?;
+    m.add_class::<RNAIterator>()?;
     Ok(())
 }
 
-fn dna_needle_bytes<'a>(needle: &'a PyDnaNeedle<'a>) -> seq_shared::NeedleBytes<'a> {
+fn rna_needle_bytes<'a>(needle: &'a PyRnaNeedle<'a>) -> seq_shared::NeedleBytes<'a> {
     match needle {
-        PyDnaNeedle::Dna(other) => seq_shared::NeedleBytes::Bytes(other.as_bytes()),
-        PyDnaNeedle::Bytes(bytes) => seq_shared::NeedleBytes::Bytes(bytes.as_slice()),
-        PyDnaNeedle::Byte(b) => seq_shared::NeedleBytes::Byte(*b),
+        PyRnaNeedle::Rna(other) => seq_shared::NeedleBytes::Bytes(other.as_bytes()),
+        PyRnaNeedle::Bytes(bytes) => seq_shared::NeedleBytes::Bytes(bytes.as_slice()),
+        PyRnaNeedle::Byte(b) => seq_shared::NeedleBytes::Byte(*b),
     }
 }
 
-fn concat_dna_bytes(left: &[u8], right: &[u8]) -> PyResult<DnaSeq> {
+fn concat_rna_bytes(left: &[u8], right: &[u8]) -> PyResult<RnaSeq> {
     let mut out = Vec::with_capacity(left.len() + right.len());
     out.extend_from_slice(left);
     out.extend_from_slice(right);
-    DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))
+    RnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
-fn repeat_dna_bytes(bytes: &[u8], n: isize) -> PyResult<DnaSeq> {
+fn repeat_rna_bytes(bytes: &[u8], n: isize) -> PyResult<RnaSeq> {
     if n <= 0 || bytes.is_empty() {
-        return DnaSeq::new(Vec::new()).map_err(|e| PyValueError::new_err(e.to_string()));
+        return RnaSeq::new(Vec::new()).map_err(|e| PyValueError::new_err(e.to_string()));
     }
 
     let n = n as usize;
@@ -485,5 +469,5 @@ fn repeat_dna_bytes(bytes: &[u8], n: isize) -> PyResult<DnaSeq> {
     for _ in 0..n {
         out.extend_from_slice(bytes);
     }
-    DnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))
+    RnaSeq::new(out).map_err(|e| PyValueError::new_err(e.to_string()))
 }

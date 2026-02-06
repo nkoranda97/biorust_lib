@@ -24,12 +24,16 @@ fn collect_records(obj: &Bound<'_, PyAny>) -> PyResult<Vec<SeqRecord<DnaSeq>>> {
         let ids = batch.inner.ids().to_vec();
         let descs = batch.inner.descs().to_vec();
         let seqs = batch.inner.seqs().as_slice().to_vec();
+        let features = batch.inner.features().to_vec();
+        let annotations = batch.inner.annotations().to_vec();
         let mut out = Vec::with_capacity(seqs.len());
         for i in 0..seqs.len() {
             out.push(SeqRecord {
                 id: ids[i].clone(),
                 desc: descs[i].clone(),
                 seq: seqs[i].clone(),
+                features: features[i].clone(),
+                annotations: annotations[i].clone(),
             });
         }
         return Ok(out);
@@ -68,6 +72,8 @@ impl DNARecordBatch {
             let mut ids = Vec::new();
             let mut descs = Vec::new();
             let mut seqs = Vec::new();
+            let mut features = Vec::new();
+            let mut annotations = Vec::new();
 
             if step > 0 {
                 let mut i = start;
@@ -76,6 +82,8 @@ impl DNARecordBatch {
                     ids.push(self.inner.ids()[idx].clone());
                     descs.push(self.inner.descs()[idx].clone());
                     seqs.push(self.inner.seqs().as_slice()[idx].clone());
+                    features.push(self.inner.features()[idx].clone());
+                    annotations.push(self.inner.annotations()[idx].clone());
                     i += step;
                 }
             } else {
@@ -85,12 +93,14 @@ impl DNARecordBatch {
                     ids.push(self.inner.ids()[idx].clone());
                     descs.push(self.inner.descs()[idx].clone());
                     seqs.push(self.inner.seqs().as_slice()[idx].clone());
+                    features.push(self.inner.features()[idx].clone());
+                    annotations.push(self.inner.annotations()[idx].clone());
                     i += step;
                 }
             }
 
             let batch = DNARecordBatch {
-                inner: RecordBatch::new(ids, descs, seqs)
+                inner: RecordBatch::new_with_meta(ids, descs, seqs, features, annotations)
                     .map_err(|e| PyTypeError::new_err(e.to_string()))?,
                 skipped: self.skipped.clone(),
             };
@@ -113,6 +123,8 @@ impl DNARecordBatch {
                 id: self.inner.ids()[i].clone(),
                 desc: self.inner.descs()[i].clone(),
                 seq: self.inner.seqs().as_slice()[i].clone(),
+                features: self.inner.features()[i].clone(),
+                annotations: self.inner.annotations()[i].clone(),
             },
         };
         Ok(Py::new(py, record)?.to_object(py))

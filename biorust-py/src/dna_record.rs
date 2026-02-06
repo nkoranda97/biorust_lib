@@ -1,7 +1,9 @@
 use pyo3::prelude::*;
-use pyo3::types::PyModule;
+use pyo3::types::{PyAny, PyModule};
 
 use crate::dna::DNA;
+use crate::feature;
+use crate::feature::SeqFeature;
 use crate::seq_shared;
 use biorust_core::seq::dna::DnaSeq;
 use biorust_core::seq::record::SeqRecord;
@@ -15,13 +17,26 @@ pub struct DNARecord {
 #[pymethods]
 impl DNARecord {
     #[new]
-    #[pyo3(signature = (id, seq, desc=None))]
-    fn new(id: &str, seq: PyRef<'_, DNA>, desc: Option<&str>) -> Self {
+    #[pyo3(signature = (id, seq, desc=None, features=None, annotations=None))]
+    fn new(
+        id: &str,
+        seq: PyRef<'_, DNA>,
+        desc: Option<&str>,
+        features: Option<&Bound<'_, PyAny>>,
+        annotations: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
         let mut record = SeqRecord::new(id, seq.inner.clone());
         if let Some(desc) = desc {
             record = record.with_desc(desc);
         }
-        Self { inner: record }
+        if let Some(features) = features {
+            record = record.with_features(feature::extract_features(features)?);
+        }
+        if let Some(annotations) = annotations {
+            record =
+                record.with_annotations(feature::extract_str_list_map(annotations, "annotations")?);
+        }
+        Ok(Self { inner: record })
     }
 
     #[getter]
@@ -39,6 +54,16 @@ impl DNARecord {
         DNA {
             inner: self.inner.seq.clone(),
         }
+    }
+
+    #[getter]
+    fn features(&self, py: Python<'_>) -> PyResult<Vec<Py<SeqFeature>>> {
+        feature::features_to_pylist(py, &self.inner.features)
+    }
+
+    #[getter]
+    fn annotations(&self, py: Python<'_>) -> PyResult<PyObject> {
+        feature::map_to_pydict(py, &self.inner.annotations)
     }
 
     fn __repr__(&self) -> PyResult<String> {

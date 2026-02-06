@@ -3,23 +3,24 @@ use pyo3::types::{PyAny, PyModule};
 
 use crate::feature;
 use crate::feature::SeqFeature;
-use crate::protein::Protein;
+use crate::rna::RNA;
 use crate::seq_shared;
-use biorust_core::seq::protein::ProteinSeq;
 use biorust_core::seq::record::SeqRecord;
+use biorust_core::seq::rna::RnaSeq;
 
+#[allow(clippy::upper_case_acronyms)]
 #[pyclass(frozen)]
-pub struct ProteinRecord {
-    pub(crate) inner: SeqRecord<ProteinSeq>,
+pub struct RNARecord {
+    pub(crate) inner: SeqRecord<RnaSeq>,
 }
 
 #[pymethods]
-impl ProteinRecord {
+impl RNARecord {
     #[new]
     #[pyo3(signature = (id, seq, desc=None, features=None, annotations=None))]
     fn new(
         id: &str,
-        seq: PyRef<'_, Protein>,
+        seq: PyRef<'_, RNA>,
         desc: Option<&str>,
         features: Option<&Bound<'_, PyAny>>,
         annotations: Option<&Bound<'_, PyAny>>,
@@ -49,8 +50,8 @@ impl ProteinRecord {
     }
 
     #[getter]
-    fn seq(&self) -> Protein {
-        Protein {
+    fn seq(&self) -> RNA {
+        RNA {
             inner: self.inner.seq.clone(),
         }
     }
@@ -66,19 +67,19 @@ impl ProteinRecord {
     }
 
     fn __repr__(&self) -> PyResult<String> {
-        let seq_repr = seq_shared::seq_repr(self.inner.seq.as_bytes(), "Protein");
+        let seq_repr = seq_shared::seq_repr(self.inner.seq.as_bytes(), "RNA");
         let desc = match self.inner.desc.as_deref() {
             Some(desc) => format!("{desc:?}"),
             None => "None".to_string(),
         };
         Ok(format!(
-            "ProteinRecord(id={:?}, description={desc}, seq={seq_repr})",
+            "RNARecord(id={:?}, description={desc}, seq={seq_repr})",
             self.inner.id
         ))
     }
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<ProteinRecord>()?;
+    m.add_class::<RNARecord>()?;
     Ok(())
 }

@@ -446,8 +446,29 @@ After each tier:
 ## Future Work (Not in scope)
 
 - **Streaming I/O for Python** — expose `FastaRecords` iterator to Python, add chunked batch reading
-- **FASTQ/GenBank support** — only FASTA and CSV currently
 - **Reduce Python batch cloning** — `__iter__`, slicing all clone sequences
 - **2-bit DNA encoding** — 4x memory reduction for large genomes
 - **Batch alignment API** — align one query against N targets efficiently
 - **AlignmentResult field encapsulation** — low priority, output-only struct
+
+---
+
+## Biopython Parity Gaps (Main Missing Features)
+
+- **Scope caveat** — do not include modules that are wrappers around external CLI tools (e.g., MUSCLE/Clustal/EMBOSS/BLAST+ command-line). All APIs must call into our Rust backend only.
+
+| Priority | Area | Scope (Rust backend only) |
+| --- | --- | --- |
+| P0 | SeqIO write support | FASTA/FASTQ/GenBank/EMBL writers, per-record metadata, batch/streaming writers, line-wrapping controls |
+| P0 | RNA sequences | `RNA` type, IUPAC RNA alphabet, complement/rev-comp rules, transcription/back-transcription, RNA translation |
+| P0 | SeqRecord features/annotations | `SeqFeature`, `FeatureLocation`, qualifiers, per-record annotations, Python exposure |
+| P0 | AlignIO + MSA objects | multiple alignment data model, parse/write Clustal/Stockholm/PHYLIP (at minimum) |
+| P1 | PairwiseAligner parity | configurable aligner object (modes, scoring, traceback options, end-gap handling) |
+| P1 | Substitution matrix loading | parse standard matrix files (PAM/BLOSUM series), registry of built-in matrices |
+| P1 | SeqUtils equivalents | GC/GC skew, melting temp, codon usage, protein analysis helpers not yet covered |
+| P1 | SearchIO / BLAST parsers | parse BLAST XML/tabular and HMMER outputs into structured results |
+| P1 | Entrez (NCBI E-utilities) | HTTP client with rate limiting, basic response parsing, sequence retrieval |
+| P1 | Phylo | tree data model, Newick parsing/writing, traversal utilities |
+| P1 | Motifs | PWM/PSSM, consensus, motif file I/O, basic scanning |
+| P1 | Restriction enzyme analysis | enzyme catalog, cut site search, digest simulation |
+| P1 | Structure I/O (PDB/MMCIF) | structure parsing and basic data model for chains/residues/atoms |

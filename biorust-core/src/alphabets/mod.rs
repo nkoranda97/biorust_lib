@@ -1,5 +1,6 @@
 pub mod dna;
 pub mod protein;
+pub mod rna;
 
 use bit_set::BitSet;
 use std::borrow::Borrow;

@@ -18,6 +18,15 @@ pub enum BioError {
     #[error("invalid scoring parameters: {msg}")]
     InvalidScoring { msg: String },
 
+    #[error("invalid feature location: start {start} > end {end}")]
+    InvalidLocation { start: usize, end: usize },
+
+    #[error("invalid strand: {strand} (expected -1 or 1)")]
+    InvalidStrand { strand: i8 },
+
+    #[error("invalid feature type: empty")]
+    InvalidFeatureType,
+
     #[error("fasta format error at line {line}: {msg}")]
     FastaFormat { msg: &'static str, line: usize },
 

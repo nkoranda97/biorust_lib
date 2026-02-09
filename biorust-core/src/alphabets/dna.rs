@@ -10,7 +10,7 @@ pub fn n_alphabet() -> Alphabet {
 }
 
 pub fn iupac_alphabet() -> Alphabet {
-    Alphabet::new(b"ACGTRYSWKMBDHVNZacgtryswkmbdhvnz")
+    Alphabet::new(b"ACGTRYSWKMBDHVNacgtryswkmbdhvn")
 }
 
 static COMPLEMENT: LazyLock<[u8; 256]> = LazyLock::new(|| {

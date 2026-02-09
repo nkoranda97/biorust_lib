@@ -102,7 +102,7 @@ impl RNARecordBatch {
             let batch = RNARecordBatch {
                 inner: RecordBatch::new_with_meta(ids, descs, seqs, features, annotations)
                     .map_err(|e| PyTypeError::new_err(e.to_string()))?,
-                skipped: self.skipped.clone(),
+                skipped: Vec::new(),
             };
             return Ok(Py::new(py, batch)?.to_object(py));
         }
@@ -163,7 +163,7 @@ impl RNARecordBatch {
 
         let out = RNARecordBatch {
             inner: self.inner.reverse_complements(),
-            skipped: self.skipped.clone(),
+            skipped: Vec::new(),
         };
         Ok(Py::new(py, out)?.to_object(py))
     }

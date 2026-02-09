@@ -45,7 +45,12 @@ impl FeatureLocation {
     }
 
     pub fn reverse_complement(&self, len: usize) -> Self {
-        debug_assert!(self.end <= len);
+        assert!(
+            self.end <= len,
+            "Feature end {} exceeds sequence length {}",
+            self.end,
+            len
+        );
         let start = len.saturating_sub(self.end);
         let end = len.saturating_sub(self.start);
         let strand = self.strand.map(|s| -s);

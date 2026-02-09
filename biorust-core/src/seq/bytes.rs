@@ -176,23 +176,7 @@ pub fn rfind(hay: &[u8], needle: Needle<'_>, start: usize, end: usize) -> Option
             }
 
             let window = &hay[start..end];
-            let finder = memmem::Finder::new(pat);
-
-            let mut pos = 0usize;
-            let mut last = None;
-
-            while pos <= window.len().saturating_sub(pat.len()) {
-                match finder.find(&window[pos..]) {
-                    Some(i) => {
-                        let found = pos + i;
-                        last = Some(found);
-                        pos = found + 1;
-                    }
-                    None => break,
-                }
-            }
-
-            last.map(|i| start + i)
+            memmem::rfind(window, pat).map(|i| start + i)
         }
     }
 }

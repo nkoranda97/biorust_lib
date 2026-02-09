@@ -198,11 +198,25 @@ impl Scoring {
         })
     }
 
-    pub fn with_end_gaps(mut self, end_gap_open: f32, end_gap_extend: f32) -> Self {
+    pub fn with_end_gaps(
+        mut self,
+        end_gap_open: f32,
+        end_gap_extend: f32,
+    ) -> crate::error::BioResult<Self> {
+        if end_gap_open > 0.0 {
+            return Err(crate::error::BioError::InvalidScoring {
+                msg: format!("end_gap_open must be <= 0, got {end_gap_open}"),
+            });
+        }
+        if end_gap_extend > 0.0 {
+            return Err(crate::error::BioError::InvalidScoring {
+                msg: format!("end_gap_extend must be <= 0, got {end_gap_extend}"),
+            });
+        }
         self.end_gap = true;
         self.end_gap_open = end_gap_open;
         self.end_gap_extend = end_gap_extend;
-        self
+        Ok(self)
     }
 
     pub fn simd_compatible(&self) -> bool {

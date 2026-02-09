@@ -1,4 +1,5 @@
 pub mod csv;
+pub mod detect;
 pub mod fasta;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

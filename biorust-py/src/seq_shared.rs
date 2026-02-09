@@ -154,17 +154,13 @@ pub fn rsplit_on_whitespace(hay: &[u8], maxsplit: isize) -> Vec<Vec<u8>> {
     let mut i = len;
 
     if maxsplit == 0 {
+        // Python rsplit(maxsplit=0) strips trailing whitespace only
         while i > 0 && hay[i - 1].is_ascii_whitespace() {
             i -= 1;
         }
-        if i == 0 {
-            return out;
+        if i > 0 {
+            out.push(hay[..i].to_vec());
         }
-        let mut start = 0usize;
-        while start < i && hay[start].is_ascii_whitespace() {
-            start += 1;
-        }
-        out.push(hay[start..i].to_vec());
         return out;
     }
 

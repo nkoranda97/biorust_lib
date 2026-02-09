@@ -111,7 +111,9 @@ impl Scoring {
         };
 
         if end_gap {
-            scoring = scoring.with_end_gaps(end_gap_open, end_gap_extend);
+            scoring = scoring
+                .with_end_gaps(end_gap_open, end_gap_extend)
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
         }
 
         Ok(Self {
@@ -163,7 +165,9 @@ impl Scoring {
             core_align::Scoring::with_matrix(mtx, alphabet_size, gap_open, gap_extend)
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;
         if end_gap {
-            scoring = scoring.with_end_gaps(end_gap_open, end_gap_extend);
+            scoring = scoring
+                .with_end_gaps(end_gap_open, end_gap_extend)
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
         }
         Ok(Self {
             inner: scoring,
@@ -329,7 +333,14 @@ impl AlignmentResult {
         for (op, len) in cigar.ops() {
             match op {
                 core_align::CigarOp::Match => {
-                    if q_idx + len > q_bytes.len() || t_idx + len > t_bytes.len() {
+                    // Use checked_add to prevent overflow before bounds check
+                    let q_end = q_idx
+                        .checked_add(*len)
+                        .ok_or_else(|| PyValueError::new_err("cigar length overflow"))?;
+                    let t_end = t_idx
+                        .checked_add(*len)
+                        .ok_or_else(|| PyValueError::new_err("cigar length overflow"))?;
+                    if q_end > q_bytes.len() || t_end > t_bytes.len() {
                         return Err(PyValueError::new_err("cigar exceeds sequence bounds"));
                     }
                     for k in 0..*len {
@@ -343,7 +354,10 @@ impl AlignmentResult {
                     t_idx += len;
                 }
                 core_align::CigarOp::Ins => {
-                    if q_idx + len > q_bytes.len() {
+                    let q_end = q_idx
+                        .checked_add(*len)
+                        .ok_or_else(|| PyValueError::new_err("cigar length overflow"))?;
+                    if q_end > q_bytes.len() {
                         return Err(PyValueError::new_err("cigar exceeds sequence bounds"));
                     }
                     for k in 0..*len {
@@ -355,7 +369,10 @@ impl AlignmentResult {
                     q_idx += len;
                 }
                 core_align::CigarOp::Del => {
-                    if t_idx + len > t_bytes.len() {
+                    let t_end = t_idx
+                        .checked_add(*len)
+                        .ok_or_else(|| PyValueError::new_err("cigar length overflow"))?;
+                    if t_end > t_bytes.len() {
                         return Err(PyValueError::new_err("cigar exceeds sequence bounds"));
                     }
                     for k in 0..*len {
@@ -441,7 +458,9 @@ fn align_internal(
         )
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
         if scoring.inner.end_gap() {
-            sc = sc.with_end_gaps(scoring.inner.end_gap_open(), scoring.inner.end_gap_extend());
+            sc = sc
+                .with_end_gaps(scoring.inner.end_gap_open(), scoring.inner.end_gap_extend())
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
         }
         Some(sc)
     } else {
@@ -459,11 +478,15 @@ fn align_internal(
         ));
     }
 
-    let inner = if local {
-        core_align::align_local(&q_enc, &t_enc, scoring_ref, traceback)
-    } else {
-        core_align::align_global(&q_enc, &t_enc, scoring_ref, traceback)
-    };
+    // Release GIL during alignment computation to allow other Python threads to run
+    let py = query.py();
+    let inner = py.allow_threads(|| {
+        if local {
+            core_align::align_local(&q_enc, &t_enc, scoring_ref, traceback)
+        } else {
+            core_align::align_global(&q_enc, &t_enc, scoring_ref, traceback)
+        }
+    });
 
     Ok(AlignmentResult {
         inner,

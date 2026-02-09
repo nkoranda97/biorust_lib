@@ -11,6 +11,7 @@ use biorust_core::seq::protein::ProteinSeq;
 
 #[allow(clippy::upper_case_acronyms)]
 #[pyclass(frozen)]
+#[derive(Clone)]
 pub struct Protein {
     pub(crate) inner: ProteinSeq,
 }
@@ -74,11 +75,12 @@ impl Protein {
         hasher.finish()
     }
 
-    fn __iter__(slf: PyRef<'_, Self>) -> ProteinIterator {
-        ProteinIterator {
-            bytes: slf.as_bytes().to_vec(),
+    fn __iter__(slf: PyRef<'_, Self>) -> PyResult<ProteinIterator> {
+        let py = slf.py();
+        Ok(ProteinIterator {
+            seq: Py::new(py, slf.clone())?,
             index: 0,
-        }
+        })
     }
 
     fn __getitem__<'py>(&self, py: Python<'py>, index: &Bound<'py, PyAny>) -> PyResult<PyObject> {
@@ -490,7 +492,7 @@ impl Protein {
 
 #[pyclass]
 struct ProteinIterator {
-    bytes: Vec<u8>,
+    seq: Py<Protein>,
     index: usize,
 }
 
@@ -500,9 +502,11 @@ impl ProteinIterator {
         slf
     }
 
-    fn __next__(&mut self) -> Option<String> {
-        if self.index < self.bytes.len() {
-            let ch = self.bytes[self.index] as char;
+    fn __next__(&mut self, py: Python<'_>) -> Option<String> {
+        let borrowed = self.seq.borrow(py);
+        let bytes = borrowed.as_bytes();
+        if self.index < bytes.len() {
+            let ch = bytes[self.index] as char;
             self.index += 1;
             Some(ch.to_string())
         } else {

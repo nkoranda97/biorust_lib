@@ -3,6 +3,7 @@ use crate::io::{normalize_seq_bytes, OnError, ReadReport, SkippedRecord};
 use crate::seq::dna::DnaSeq;
 use crate::seq::protein::ProteinSeq;
 use crate::seq::record_batch::RecordBatch;
+use crate::seq::rna::RnaSeq;
 use crate::seq::traits::SeqBytes;
 use csv::{ReaderBuilder, StringRecord};
 use std::fs::File;
@@ -41,6 +42,16 @@ pub fn read_csv_dna(
     desc_col: Option<ColumnSel>,
     on_error: OnError,
 ) -> BioResult<ReadReport<RecordBatch<DnaSeq>>> {
+    read_csv(path, id_col, seq_col, desc_col, on_error)
+}
+
+pub fn read_csv_rna(
+    path: impl AsRef<Path>,
+    id_col: ColumnSel,
+    seq_col: ColumnSel,
+    desc_col: Option<ColumnSel>,
+    on_error: OnError,
+) -> BioResult<ReadReport<RecordBatch<RnaSeq>>> {
     read_csv(path, id_col, seq_col, desc_col, on_error)
 }
 

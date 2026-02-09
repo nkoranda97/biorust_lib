@@ -125,7 +125,10 @@ pub fn align_global_score(
         }
 
         // update leftmost column for next row
-        let h_left_val = -gap_open - gap_extend * (t_idx as i16);
+        // Use saturating arithmetic to prevent i16 overflow for long sequences
+        let h_left_val = gap_open
+            .saturating_neg()
+            .saturating_sub(gap_extend.saturating_mul(t_idx as i16));
         h_left_prev = h_left_val;
 
         std::mem::swap(&mut h_prev, &mut h);

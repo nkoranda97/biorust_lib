@@ -38,10 +38,13 @@ impl ProteinSeq {
     }
 
     pub fn to_string(&self) -> BioResult<String> {
-        // All valid IUPAC protein bytes are valid UTF-8, so this should never fail
-        Ok(std::str::from_utf8(self.as_bytes())
-            .expect("validated protein sequence contains invalid UTF-8")
-            .to_string())
+        // All valid IUPAC protein bytes are valid UTF-8
+        std::str::from_utf8(self.as_bytes())
+            .map(|s| s.to_string())
+            .map_err(|_| BioError::InvalidChar {
+                ch: '\u{FFFD}',
+                pos: 0,
+            })
     }
 
     pub fn reverse(&self) -> Self {
@@ -122,9 +125,12 @@ impl ProteinSeq {
         if len == 0 {
             return freq;
         }
+        let counts = self.counts();
         let denom = len as f64;
-        for &b in self.as_bytes() {
-            freq[b as usize] += 1.0 / denom;
+        for (i, &c) in counts.iter().enumerate() {
+            if c > 0 {
+                freq[i] = c as f64 / denom;
+            }
         }
         freq
     }
@@ -146,11 +152,11 @@ impl ProteinSeq {
         if len == 0 {
             return freq;
         }
+        let counts = self.aa_counts_20();
         let denom = len as f64;
-        for &b in self.as_bytes() {
-            let idx = AA20_INDEX[b as usize];
-            if idx >= 0 {
-                freq[idx as usize] += 1.0 / denom;
+        for (i, &c) in counts.iter().enumerate() {
+            if c > 0 {
+                freq[i] = c as f64 / denom;
             }
         }
         freq
@@ -208,23 +214,33 @@ impl ProteinSeq {
         if window == 0 {
             return Err(BioError::InvalidWindow { window });
         }
-        if self.len() < window {
+        let bytes = self.as_bytes();
+        if bytes.len() < window {
             return Ok(Vec::new());
         }
-        let mut out = Vec::with_capacity(self.len() - window + 1);
-        for i in 0..=self.len() - window {
-            let mut total = 0.0f64;
-            for (pos, &b) in self.as_bytes()[i..i + window].iter().enumerate() {
+
+        // Pre-map bytes to hydrophobicity values, validating all at once
+        let hydro: Vec<f64> = bytes
+            .iter()
+            .enumerate()
+            .map(|(pos, &b)| {
                 let idx = AA20_INDEX[b as usize];
                 if idx < 0 {
-                    return Err(BioError::InvalidChar {
-                        ch: b as char,
-                        pos: i + pos,
-                    });
+                    Err(BioError::InvalidChar { ch: b as char, pos })
+                } else {
+                    Ok(AA20_HYDRO_KD[idx as usize])
                 }
-                total += AA20_HYDRO_KD[idx as usize];
-            }
-            out.push(total / window as f64);
+            })
+            .collect::<BioResult<_>>()?;
+
+        // Sliding window: O(n) instead of O(n * window)
+        let inv_w = 1.0 / window as f64;
+        let mut sum: f64 = hydro[..window].iter().sum();
+        let mut out = Vec::with_capacity(bytes.len() - window + 1);
+        out.push(sum * inv_w);
+        for i in 1..=bytes.len() - window {
+            sum += hydro[i + window - 1] - hydro[i - 1];
+            out.push(sum * inv_w);
         }
         Ok(out)
     }

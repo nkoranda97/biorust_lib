@@ -12,10 +12,15 @@ pub use types::{AlignmentMode, AlignmentResult, Cigar, CigarOp, Scoring};
 #[cfg(test)]
 mod tests;
 
+/// Conservative limit to prevent i16 overflow in SIMD kernels.
+/// SIMD implementations use i16 for DP values, so we need to ensure
+/// max_score * sequence_length stays well below i16::MAX (32767).
+const SIMD_MAX_SAFE_SCORE: i32 = 30000;
+
 fn simd_safe_len(len: usize, scoring: &Scoring) -> bool {
     let max_abs = scoring.max_abs_score();
     let bound = max_abs.saturating_mul(len as i32);
-    bound <= 30000
+    bound <= SIMD_MAX_SAFE_SCORE
 }
 
 #[allow(dead_code)]

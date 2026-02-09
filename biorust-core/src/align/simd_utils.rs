@@ -4,6 +4,7 @@ use wide::i16x16;
 
 pub const LANES: usize = 16;
 
+#[inline]
 pub fn shift_left(v: i16x16, insert: i16) -> i16x16 {
     let mut arr = v.to_array();
     for i in (1..LANES).rev() {

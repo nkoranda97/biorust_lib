@@ -1,6 +1,6 @@
 #![allow(clippy::useless_conversion)]
 
-use pyo3::exceptions::{PyIndexError, PyTypeError, PyValueError};
+use pyo3::exceptions::{PyIndexError, PyOverflowError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyList, PySlice};
 
@@ -388,8 +388,12 @@ impl DNABatch {
         }
         let n = n as usize;
         let orig: Vec<DnaSeq> = slf.inner.as_slice().to_vec();
+        let total = orig
+            .len()
+            .checked_mul(n)
+            .ok_or_else(|| PyOverflowError::new_err("repeat count would overflow"))?;
         slf.inner.clear();
-        slf.inner.reserve(orig.len() * n);
+        slf.inner.reserve(total);
         for _ in 0..n {
             slf.inner.extend(orig.iter().cloned());
         }
@@ -608,8 +612,12 @@ impl RNABatch {
         }
         let n = n as usize;
         let orig: Vec<RnaSeq> = slf.inner.as_slice().to_vec();
+        let total = orig
+            .len()
+            .checked_mul(n)
+            .ok_or_else(|| PyOverflowError::new_err("repeat count would overflow"))?;
         slf.inner.clear();
-        slf.inner.reserve(orig.len() * n);
+        slf.inner.reserve(total);
         for _ in 0..n {
             slf.inner.extend(orig.iter().cloned());
         }
@@ -906,8 +914,12 @@ impl ProteinBatch {
         }
         let n = n as usize;
         let orig: Vec<ProteinSeq> = slf.inner.as_slice().to_vec();
+        let total = orig
+            .len()
+            .checked_mul(n)
+            .ok_or_else(|| PyOverflowError::new_err("repeat count would overflow"))?;
         slf.inner.clear();
-        slf.inner.reserve(orig.len() * n);
+        slf.inner.reserve(total);
         for _ in 0..n {
             slf.inner.extend(orig.iter().cloned());
         }

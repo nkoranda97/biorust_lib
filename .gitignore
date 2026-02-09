@@ -31,3 +31,5 @@ src/biorust/_native*.dll
 .ruff_cache/
 
 .claude/
+
+src/biorust/_bin

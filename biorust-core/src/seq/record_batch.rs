@@ -2,6 +2,7 @@ use crate::error::{BioError, BioResult};
 use crate::seq::batch::SeqBatch;
 use crate::seq::dna::DnaSeq;
 use crate::seq::feature::{Annotations, SeqFeature};
+use crate::seq::protein::ProteinSeq;
 use crate::seq::record::SeqRecord;
 use crate::seq::rna::RnaSeq;
 use crate::seq::traits::SeqBytes;
@@ -155,6 +156,51 @@ impl<S: SeqBytes> RecordBatch<S> {
     pub fn lengths(&self) -> Vec<usize> {
         self.seqs.lengths()
     }
+
+    /// Return a new batch containing only records whose sequence is non-empty.
+    pub fn filter_empty(&self) -> Self {
+        let mut ids = Vec::new();
+        let mut descs = Vec::new();
+        let mut seqs = Vec::new();
+        let mut features = Vec::new();
+        let mut annotations = Vec::new();
+
+        for (i, seq) in self.seqs.as_slice().iter().enumerate() {
+            if !seq.as_bytes().is_empty() {
+                ids.push(self.ids[i].clone());
+                descs.push(self.descs[i].clone());
+                seqs.push(seq.clone());
+                features.push(self.features[i].clone());
+                annotations.push(self.annotations[i].clone());
+            }
+        }
+
+        Self {
+            ids,
+            descs,
+            seqs: SeqBatch::new(seqs),
+            features,
+            annotations,
+        }
+    }
+
+    /// Remove records with empty sequences in place.
+    pub fn filter_empty_in_place(&mut self) {
+        let mut i = 0;
+        let mut seqs = self.seqs.as_slice().to_vec();
+        while i < seqs.len() {
+            if seqs[i].as_bytes().is_empty() {
+                self.ids.remove(i);
+                self.descs.remove(i);
+                seqs.remove(i);
+                self.features.remove(i);
+                self.annotations.remove(i);
+            } else {
+                i += 1;
+            }
+        }
+        self.seqs = SeqBatch::new(seqs);
+    }
 }
 
 pub struct SeqRecordRef<'a, S: SeqBytes> {
@@ -166,6 +212,21 @@ pub struct SeqRecordRef<'a, S: SeqBytes> {
 }
 
 impl RecordBatch<DnaSeq> {
+    /// Translate all DNA sequences to protein, preserving IDs, descriptions,
+    /// and annotations. Features are cleared since nucleotide coordinates
+    /// don't map to protein coordinates.
+    pub fn translate(&self) -> RecordBatch<ProteinSeq> {
+        let seqs = self.seqs.translate().into_vec();
+        let empty_features: Vec<Vec<SeqFeature>> = vec![Vec::new(); seqs.len()];
+        RecordBatch {
+            ids: self.ids.clone(),
+            descs: self.descs.clone(),
+            seqs: SeqBatch::new(seqs),
+            features: empty_features,
+            annotations: self.annotations.clone(),
+        }
+    }
+
     pub fn reverse_complements(&self) -> Self {
         let seqs = self.seqs.reverse_complements().into_vec();
         let mut features = Vec::with_capacity(self.features.len());
@@ -198,6 +259,21 @@ impl RecordBatch<DnaSeq> {
 }
 
 impl RecordBatch<RnaSeq> {
+    /// Translate all RNA sequences to protein, preserving IDs, descriptions,
+    /// and annotations. Features are cleared since nucleotide coordinates
+    /// don't map to protein coordinates.
+    pub fn translate(&self) -> RecordBatch<ProteinSeq> {
+        let seqs = self.seqs.translate().into_vec();
+        let empty_features: Vec<Vec<SeqFeature>> = vec![Vec::new(); seqs.len()];
+        RecordBatch {
+            ids: self.ids.clone(),
+            descs: self.descs.clone(),
+            seqs: SeqBatch::new(seqs),
+            features: empty_features,
+            annotations: self.annotations.clone(),
+        }
+    }
+
     pub fn reverse_complements(&self) -> Self {
         let seqs = self.seqs.reverse_complements().into_vec();
         let mut features = Vec::with_capacity(self.features.len());
@@ -255,6 +331,53 @@ mod tests {
         let record_ref = batch.get_record(0).unwrap();
         assert_eq!(record_ref.features, &[feature]);
         assert_eq!(record_ref.annotations, &ann);
+    }
+
+    #[test]
+    fn translate_dna_batch() {
+        let seq1 = DnaSeq::new(b"ATGAAA".to_vec()).unwrap(); // MK
+        let seq2 = DnaSeq::new(b"ATGTTT".to_vec()).unwrap(); // MF
+        let r1 = SeqRecord::new("id1", seq1);
+        let r2 = SeqRecord::new("id2", seq2);
+        let batch = RecordBatch::from_records(vec![r1, r2]);
+
+        let protein_batch = batch.translate();
+        assert_eq!(protein_batch.len(), 2);
+        assert_eq!(protein_batch.ids(), batch.ids());
+        assert_eq!(protein_batch.seq(0).unwrap().as_bytes(), b"MK");
+        assert_eq!(protein_batch.seq(1).unwrap().as_bytes(), b"MF");
+    }
+
+    #[test]
+    fn filter_empty_records() {
+        let seq1 = DnaSeq::new(b"ATGC".to_vec()).unwrap();
+        let seq2 = DnaSeq::new(Vec::new()).unwrap();
+        let seq3 = DnaSeq::new(b"GCTA".to_vec()).unwrap();
+        let r1 = SeqRecord::new("id1", seq1);
+        let r2 = SeqRecord::new("id2", seq2);
+        let r3 = SeqRecord::new("id3", seq3);
+        let batch = RecordBatch::from_records(vec![r1, r2, r3]);
+
+        let filtered = batch.filter_empty();
+        assert_eq!(filtered.len(), 2);
+        assert_eq!(filtered.id(0).unwrap(), "id1");
+        assert_eq!(filtered.id(1).unwrap(), "id3");
+    }
+
+    #[test]
+    fn filter_empty_in_place_records() {
+        let seq1 = DnaSeq::new(b"ATGC".to_vec()).unwrap();
+        let seq2 = DnaSeq::new(Vec::new()).unwrap();
+        let seq3 = DnaSeq::new(b"GCTA".to_vec()).unwrap();
+        let r1 = SeqRecord::new("id1", seq1);
+        let r2 = SeqRecord::new("id2", seq2);
+        let r3 = SeqRecord::new("id3", seq3);
+        let mut batch = RecordBatch::from_records(vec![r1, r2, r3]);
+
+        batch.filter_empty_in_place();
+        assert_eq!(batch.len(), 2);
+        assert_eq!(batch.id(0).unwrap(), "id1");
+        assert_eq!(batch.id(1).unwrap(), "id3");
     }
 
     #[test]

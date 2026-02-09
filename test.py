@@ -35,6 +35,7 @@ from biorust import (
     read_csv,
     read_fasta,
     write_fasta,
+    msa_clustalo
 )
 
 
@@ -189,6 +190,18 @@ def main() -> None:
         demo_csv_io(tmp_dir)
 
     demo_alignment()
+
+    records = DNARecordBatch([
+        DNARecord("seq1", DNA("ATGCTAGCTAG")),
+        DNARecord("seq2", DNA("ATGCGAGCTAG")),
+        DNARecord("seq3", DNA("ATGCTAGATAG")),
+    ])
+
+    msa = msa_clustalo(records)
+    print("\n")
+    print(msa)
+
+    
 
 
 if __name__ == "__main__":

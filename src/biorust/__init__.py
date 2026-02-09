@@ -23,7 +23,13 @@ from ._native import (
     AlignmentResult,
     align_local,
     align_global,
+    GappedDNA,
+    GappedProtein,
+    AlignmentDNA,
+    AlignmentProtein,
 )
+from ._clustalo import msa_clustalo
+from ._msa import msa
 
 __all__ = [
     "DNA",
@@ -50,4 +56,10 @@ __all__ = [
     "AlignmentResult",
     "align_local",
     "align_global",
+    "GappedDNA",
+    "GappedProtein",
+    "AlignmentDNA",
+    "AlignmentProtein",
+    "msa_clustalo",
+    "msa",
 ]

@@ -2,6 +2,8 @@ pub mod batch;
 pub mod bytes;
 pub mod dna;
 pub mod feature;
+pub mod gapped_dna;
+pub mod gapped_protein;
 pub mod protein;
 pub mod record;
 pub mod record_batch;

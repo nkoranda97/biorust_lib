@@ -18,6 +18,7 @@ dependencies = [
 module-name = "biorust._native"
 manifest-path = "biorust-py/Cargo.toml"
 python-source = "src"
+include = ["src/biorust/_bin/**/*"]
 
 [dependency-groups]
 dev = [

@@ -5,6 +5,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyModule, PySlice};
 
 use crate::batch::RNABatch;
+use crate::protein_record_batch::ProteinRecordBatch;
 use crate::report::SkippedRecord;
 use crate::rna_record::RNARecord;
 use biorust_core::seq::batch::SeqBatch;
@@ -152,6 +153,28 @@ impl RNARecordBatch {
         RNABatch {
             inner: SeqBatch::new(seqs),
         }
+    }
+
+    fn translate(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let out = ProteinRecordBatch {
+            inner: self.inner.translate(),
+            skipped: Vec::new(),
+        };
+        Ok(Py::new(py, out)?.to_object(py))
+    }
+
+    #[pyo3(signature = (inplace=false))]
+    fn filter_empty(&mut self, py: Python<'_>, inplace: bool) -> PyResult<PyObject> {
+        if inplace {
+            self.inner.filter_empty_in_place();
+            return Ok(py.None());
+        }
+
+        let out = RNARecordBatch {
+            inner: self.inner.filter_empty(),
+            skipped: Vec::new(),
+        };
+        Ok(Py::new(py, out)?.to_object(py))
     }
 
     #[pyo3(signature = (inplace=false))]

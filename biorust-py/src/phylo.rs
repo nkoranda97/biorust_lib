@@ -91,6 +91,29 @@ impl PyPhyloTree {
         phylo::to_newick(&self.inner)
     }
 
+    fn ascii_diagram(&self) -> String {
+        let start = self
+            .inner
+            .root()
+            .unwrap_or_else(|| self.inner.num_nodes().saturating_sub(1));
+
+        let mut out = String::new();
+        out.push_str(&format_node_label(&self.inner, start));
+        out.push('\n');
+
+        let children = self.inner.node(start).children.clone();
+        for (i, child) in children.iter().enumerate() {
+            let last = i + 1 == children.len();
+            write_ascii_subtree(&self.inner, *child, "", last, &mut out);
+        }
+
+        if out.ends_with('\n') {
+            out.pop();
+        }
+
+        out
+    }
+
     fn leaf_labels(&self) -> Vec<String> {
         self.inner.leaf_labels()
     }
@@ -123,6 +146,43 @@ impl PyPhyloTree {
 
     fn __str__(&self) -> String {
         self.to_newick()
+    }
+}
+
+fn format_node_label(tree: &phylo::PhyloTree, idx: usize) -> String {
+    let node = tree.node(idx);
+    let mut label = if let Some(ref l) = node.label {
+        l.to_string()
+    } else if node.children.is_empty() {
+        format!("leaf{}", idx)
+    } else {
+        format!("node{}", idx)
+    };
+
+    if let Some(bl) = node.branch_length {
+        label.push_str(&format!(":{:.6}", bl));
+    }
+
+    label
+}
+
+fn write_ascii_subtree(
+    tree: &phylo::PhyloTree,
+    idx: usize,
+    prefix: &str,
+    is_last: bool,
+    out: &mut String,
+) {
+    out.push_str(prefix);
+    out.push_str(if is_last { "`-- " } else { "|-- " });
+    out.push_str(&format_node_label(tree, idx));
+    out.push('\n');
+
+    let child_prefix = format!("{}{}", prefix, if is_last { "    " } else { "|   " });
+    let children = tree.node(idx).children.clone();
+    for (i, child) in children.iter().enumerate() {
+        let last = i + 1 == children.len();
+        write_ascii_subtree(tree, *child, &child_prefix, last, out);
     }
 }
 

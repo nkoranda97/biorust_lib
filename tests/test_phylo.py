@@ -206,6 +206,16 @@ class TestBuildTree:
         assert tree.num_leaves() == 2
         assert set(tree.leaf_labels()) == {"X", "Y"}
 
+    def test_ascii_diagram(self):
+        dm = self._simple_dm()
+        tree = build_tree(dm, method="nj")
+        diagram = tree.ascii_diagram()
+        assert "A" in diagram
+        assert "B" in diagram
+        assert "C" in diagram
+        assert "D" in diagram
+        assert "|--" in diagram or "`--" in diagram
+
 
 class TestAlignmentDiagram:
     def test_dot_gap_not_conserved(self):

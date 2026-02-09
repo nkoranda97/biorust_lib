@@ -82,6 +82,25 @@ pub enum BioError {
         #[source]
         source: csv::Error,
     },
+
+    #[error("too few sequences: {n} (need at least 2)")]
+    TooFewSequences { n: usize },
+
+    #[error("saturated distance between sequences {i} and {j} for model {model}")]
+    SaturatedDistance { i: usize, j: usize, model: String },
+
+    #[error("no valid sites between sequences {i} and {j}")]
+    NoValidSites { i: usize, j: usize },
+
+    #[error("label count {labels} does not match sequence count {seqs}")]
+    LabelCountMismatch { labels: usize, seqs: usize },
+
+    #[error("sequence {index} has length {len} but expected {expected}")]
+    SequenceLengthMismatch {
+        index: usize,
+        len: usize,
+        expected: usize,
+    },
 }
 
 pub type BioResult<T> = Result<T, BioError>;

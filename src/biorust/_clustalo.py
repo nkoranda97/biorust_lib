@@ -140,6 +140,36 @@ def _parse_fasta(text: str) -> list[tuple[str, str]]:
     return records
 
 
+def _validate_extra_args(extra_args):
+    if isinstance(extra_args, (str, bytes)):
+        raise TypeError("extra_args must be a list of strings, not str or bytes")
+    if not isinstance(extra_args, (list, tuple)):
+        raise TypeError(
+            f"extra_args must be a list of strings, got {type(extra_args).__name__}"
+        )
+
+    forbidden_flags = {"-i", "-o", "--force"}
+    forbidden_prefixes = (
+        "--outfmt",
+        "--seqtype",
+        "--threads",
+        "--in",
+        "--out",
+        "--infile",
+        "--outfile",
+    )
+
+    for arg in extra_args:
+        if not isinstance(arg, str):
+            raise TypeError(
+                f"extra_args must be a list of strings, got {type(arg).__name__}"
+            )
+        if arg in forbidden_flags or arg.startswith(forbidden_prefixes):
+            raise ValueError(
+                f"extra_args cannot override required clustalo args: {arg!r}"
+            )
+
+
 def msa_clustalo(records, *, threads=None, extra_args=None):
     """Run Clustal Omega multiple sequence alignment.
 
@@ -196,6 +226,7 @@ def msa_clustalo(records, *, threads=None, extra_args=None):
             cmd.append(f"--threads={threads}")
 
         if extra_args:
+            _validate_extra_args(extra_args)
             cmd.extend(extra_args)
 
         result = subprocess.run(cmd, capture_output=True, text=True)

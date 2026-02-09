@@ -7,12 +7,27 @@ use crate::gapped_protein::GappedProtein;
 use biorust_core::seq::gapped_dna::GappedDnaSeq;
 use biorust_core::seq::gapped_protein::GappedProteinSeq;
 
+#[inline]
+fn is_gap(b: u8) -> bool {
+    b == b'-' || b == b'.'
+}
+
 #[allow(clippy::upper_case_acronyms)]
 #[pyclass(frozen)]
 pub struct AlignmentDNA {
     ids: Vec<Box<str>>,
     seqs: Vec<GappedDnaSeq>,
     width: usize,
+}
+
+impl AlignmentDNA {
+    pub(crate) fn seqs_ref(&self) -> &[GappedDnaSeq] {
+        &self.seqs
+    }
+
+    pub(crate) fn labels_cloned(&self) -> Vec<Box<str>> {
+        self.ids.clone()
+    }
 }
 
 #[pymethods]
@@ -95,13 +110,7 @@ impl AlignmentDNA {
                 }
             }
 
-            if new_seqs.is_empty() {
-                return Err(PyValueError::new_err(
-                    "AlignmentDNA requires at least one sequence",
-                ));
-            }
-
-            let width = new_seqs[0].len();
+            let width = new_seqs.first().map(|s| s.len()).unwrap_or(0);
             let obj = AlignmentDNA {
                 ids: new_ids,
                 seqs: new_seqs,
@@ -158,6 +167,9 @@ impl AlignmentDNA {
     /// Each sequence is labelled with its ID (left-padded), followed by a
     /// conservation line where ``*`` marks fully-conserved columns.
     fn alignment_diagram(&self) -> String {
+        if self.seqs.is_empty() {
+            return String::new();
+        }
         let pad = self.ids.iter().map(|id| id.len()).max().unwrap_or(0);
         let mut lines = Vec::with_capacity(self.ids.len() + 1);
 
@@ -173,7 +185,7 @@ impl AlignmentDNA {
             let first = self.seqs[0].as_bytes()[col].to_ascii_uppercase();
             let conserved = self.seqs[1..]
                 .iter()
-                .all(|s| s.as_bytes()[col].to_ascii_uppercase() == first && first != b'-');
+                .all(|s| s.as_bytes()[col].to_ascii_uppercase() == first && !is_gap(first));
             conservation.push(if conserved { '*' } else { ' ' });
         }
         lines.push(format!("{:>pad$}  {}", "", conservation, pad = pad));
@@ -195,6 +207,16 @@ pub struct AlignmentProtein {
     ids: Vec<Box<str>>,
     seqs: Vec<GappedProteinSeq>,
     width: usize,
+}
+
+impl AlignmentProtein {
+    pub(crate) fn seqs_ref(&self) -> &[GappedProteinSeq] {
+        &self.seqs
+    }
+
+    pub(crate) fn labels_cloned(&self) -> Vec<Box<str>> {
+        self.ids.clone()
+    }
 }
 
 #[pymethods]
@@ -279,13 +301,7 @@ impl AlignmentProtein {
                 }
             }
 
-            if new_seqs.is_empty() {
-                return Err(PyValueError::new_err(
-                    "AlignmentProtein requires at least one sequence",
-                ));
-            }
-
-            let width = new_seqs[0].len();
+            let width = new_seqs.first().map(|s| s.len()).unwrap_or(0);
             let obj = AlignmentProtein {
                 ids: new_ids,
                 seqs: new_seqs,
@@ -337,6 +353,9 @@ impl AlignmentProtein {
     }
 
     fn alignment_diagram(&self) -> String {
+        if self.seqs.is_empty() {
+            return String::new();
+        }
         let pad = self.ids.iter().map(|id| id.len()).max().unwrap_or(0);
         let mut lines = Vec::with_capacity(self.ids.len() + 1);
 
@@ -350,7 +369,7 @@ impl AlignmentProtein {
             let first = self.seqs[0].as_bytes()[col].to_ascii_uppercase();
             let conserved = self.seqs[1..]
                 .iter()
-                .all(|s| s.as_bytes()[col].to_ascii_uppercase() == first && first != b'-');
+                .all(|s| s.as_bytes()[col].to_ascii_uppercase() == first && !is_gap(first));
             conservation.push(if conserved { '*' } else { ' ' });
         }
         lines.push(format!("{:>pad$}  {}", "", conservation, pad = pad));

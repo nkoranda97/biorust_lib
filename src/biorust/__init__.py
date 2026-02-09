@@ -27,6 +27,10 @@ from ._native import (
     GappedProtein,
     AlignmentDNA,
     AlignmentProtein,
+    DistanceMatrix,
+    PhyloTree,
+    distance_matrix,
+    build_tree,
 )
 from ._clustalo import msa_clustalo
 from ._msa import msa
@@ -60,6 +64,10 @@ __all__ = [
     "GappedProtein",
     "AlignmentDNA",
     "AlignmentProtein",
+    "DistanceMatrix",
+    "PhyloTree",
+    "distance_matrix",
+    "build_tree",
     "msa_clustalo",
     "msa",
 ]

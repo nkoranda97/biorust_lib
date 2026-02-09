@@ -140,3 +140,21 @@ def test_msa_bad_input():
 
     with pytest.raises(TypeError, match="not str"):
         _normalize_records(b"ACGT")
+
+
+def test_extra_args_validation():
+    from biorust._clustalo import _validate_extra_args
+
+    with pytest.raises(TypeError, match="list of strings"):
+        _validate_extra_args("--outfmt=fasta")
+
+    with pytest.raises(TypeError, match="list of strings"):
+        _validate_extra_args([1])
+
+    with pytest.raises(ValueError, match="override required"):
+        _validate_extra_args(["--outfmt=clu"])
+
+    with pytest.raises(ValueError, match="override required"):
+        _validate_extra_args(["-i"])
+
+    _validate_extra_args(["--full"])

@@ -35,15 +35,22 @@ pub fn align_global_score(
     let mut e = vec![v_neg_inf; seg_len];
 
     let last_seg = seg_len.saturating_sub(1);
-    let mut last_valid_lanes = [true; LANES];
-    if m % LANES != 0 {
-        for (lane, slot) in last_valid_lanes.iter_mut().enumerate() {
+    let needs_mask = m % LANES != 0;
+    // Precompute a clamp vector: valid lanes get i16::MAX (no-op under min),
+    // invalid lanes get neg_inf. A single v_h.min(v_clamp) replaces the
+    // to_array()/from() round-trip per masked segment.
+    let v_clamp = if needs_mask {
+        let mut arr = [i16::MAX; LANES];
+        for (lane, slot) in arr.iter_mut().enumerate() {
             let idx = lane * seg_len + last_seg;
             if idx >= m {
-                *slot = false;
+                *slot = neg_inf;
             }
         }
-    }
+        i16x16::from(arr)
+    } else {
+        i16x16::splat(i16::MAX)
+    };
 
     // Initialize row 0 (i = 0)
     for seg in 0..seg_len {
@@ -76,28 +83,15 @@ pub fn align_global_score(
             v_h = v_h.max(v_e);
             v_h = v_h.max(v_f);
 
-            if i == last_seg && m % LANES != 0 {
-                let mut arr = v_h.to_array();
-                for lane in 0..LANES {
-                    if !last_valid_lanes[lane] {
-                        arr[lane] = neg_inf;
-                    }
-                }
-                v_h = i16x16::from(arr);
+            if i == last_seg && needs_mask {
+                v_h = v_h.min(v_clamp);
             }
             h[i] = v_h;
 
             let v_h_gap = v_h - v_gap_o;
-            let v_e_new = (v_e - v_gap_e).max(v_h_gap);
-            let mut v_e_new = v_e_new;
-            if i == last_seg && m % LANES != 0 {
-                let mut arr = v_e_new.to_array();
-                for lane in 0..LANES {
-                    if !last_valid_lanes[lane] {
-                        arr[lane] = neg_inf;
-                    }
-                }
-                v_e_new = i16x16::from(arr);
+            let mut v_e_new = (v_e - v_gap_e).max(v_h_gap);
+            if i == last_seg && needs_mask {
+                v_e_new = v_e_new.min(v_clamp);
             }
             e[i] = v_e_new;
             v_f = (v_f - v_gap_e).max(v_h_gap);
@@ -109,14 +103,8 @@ pub fn align_global_score(
             v_f = shift_left(v_f, neg_inf);
             for (i, h_slot) in h.iter_mut().enumerate() {
                 let mut v_h_i = (*h_slot).max(v_f);
-                if i == last_seg && m % LANES != 0 {
-                    let mut arr = v_h_i.to_array();
-                    for (lane, slot) in arr.iter_mut().enumerate() {
-                        if !last_valid_lanes[lane] {
-                            *slot = neg_inf;
-                        }
-                    }
-                    v_h_i = i16x16::from(arr);
+                if i == last_seg && needs_mask {
+                    v_h_i = v_h_i.min(v_clamp);
                 }
                 *h_slot = v_h_i;
                 let v_h_gap = v_h_i - v_gap_o;

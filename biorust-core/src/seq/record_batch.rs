@@ -186,19 +186,25 @@ impl<S: SeqBytes> RecordBatch<S> {
 
     /// Remove records with empty sequences in place.
     pub fn filter_empty_in_place(&mut self) {
-        let mut i = 0;
-        let mut seqs = self.seqs.as_slice().to_vec();
-        while i < seqs.len() {
-            if seqs[i].as_bytes().is_empty() {
-                self.ids.remove(i);
-                self.descs.remove(i);
-                seqs.remove(i);
-                self.features.remove(i);
-                self.annotations.remove(i);
-            } else {
-                i += 1;
-            }
+        let keep: Vec<bool> = self
+            .seqs
+            .as_slice()
+            .iter()
+            .map(|s| !s.as_bytes().is_empty())
+            .collect();
+
+        fn retain_by_mask<T>(v: &mut Vec<T>, keep: &[bool]) {
+            let mut iter = keep.iter();
+            v.retain(|_| *iter.next().unwrap());
         }
+
+        retain_by_mask(&mut self.ids, &keep);
+        retain_by_mask(&mut self.descs, &keep);
+        retain_by_mask(&mut self.features, &keep);
+        retain_by_mask(&mut self.annotations, &keep);
+
+        let mut seqs = self.seqs.as_slice().to_vec();
+        retain_by_mask(&mut seqs, &keep);
         self.seqs = SeqBatch::new(seqs);
     }
 }
@@ -215,16 +221,16 @@ impl RecordBatch<DnaSeq> {
     /// Translate all DNA sequences to protein, preserving IDs, descriptions,
     /// and annotations. Features are cleared since nucleotide coordinates
     /// don't map to protein coordinates.
-    pub fn translate(&self) -> RecordBatch<ProteinSeq> {
-        let seqs = self.seqs.translate().into_vec();
+    pub fn translate(&self) -> BioResult<RecordBatch<ProteinSeq>> {
+        let seqs = self.seqs.translate()?.into_vec();
         let empty_features: Vec<Vec<SeqFeature>> = vec![Vec::new(); seqs.len()];
-        RecordBatch {
+        Ok(RecordBatch {
             ids: self.ids.clone(),
             descs: self.descs.clone(),
             seqs: SeqBatch::new(seqs),
             features: empty_features,
             annotations: self.annotations.clone(),
-        }
+        })
     }
 
     pub fn reverse_complements(&self) -> Self {
@@ -262,16 +268,16 @@ impl RecordBatch<RnaSeq> {
     /// Translate all RNA sequences to protein, preserving IDs, descriptions,
     /// and annotations. Features are cleared since nucleotide coordinates
     /// don't map to protein coordinates.
-    pub fn translate(&self) -> RecordBatch<ProteinSeq> {
-        let seqs = self.seqs.translate().into_vec();
+    pub fn translate(&self) -> BioResult<RecordBatch<ProteinSeq>> {
+        let seqs = self.seqs.translate()?.into_vec();
         let empty_features: Vec<Vec<SeqFeature>> = vec![Vec::new(); seqs.len()];
-        RecordBatch {
+        Ok(RecordBatch {
             ids: self.ids.clone(),
             descs: self.descs.clone(),
             seqs: SeqBatch::new(seqs),
             features: empty_features,
             annotations: self.annotations.clone(),
-        }
+        })
     }
 
     pub fn reverse_complements(&self) -> Self {
@@ -341,7 +347,7 @@ mod tests {
         let r2 = SeqRecord::new("id2", seq2);
         let batch = RecordBatch::from_records(vec![r1, r2]);
 
-        let protein_batch = batch.translate();
+        let protein_batch = batch.translate().unwrap();
         assert_eq!(protein_batch.len(), 2);
         assert_eq!(protein_batch.ids(), batch.ids());
         assert_eq!(protein_batch.seq(0).unwrap().as_bytes(), b"MK");

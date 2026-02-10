@@ -1,3 +1,4 @@
+from logging import raiseExceptions
 import pytest
 
 from biorust import DNA, Protein
@@ -14,8 +15,9 @@ def test_translate_lowercase_stop_and_ambiguous():
     assert str(DNA("atgtaa").translate()) == "M*"
     assert str(DNA("ATGNNN").translate()) == "MX"
 
-    # trailing bases are ignored
-    assert str(DNA("ATGA").translate()) == "M"
+    # not factor of 3 errors
+    with pytest.raises(ValueError):
+        DNA("ATGA").translate()
 
 
 def test_protein_construction():

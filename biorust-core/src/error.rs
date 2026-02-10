@@ -101,6 +101,9 @@ pub enum BioError {
         len: usize,
         expected: usize,
     },
+
+    #[error("translation error: {msg}")]
+    TranslationError { msg: String },
 }
 
 pub type BioResult<T> = Result<T, BioError>;

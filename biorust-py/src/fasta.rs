@@ -35,9 +35,12 @@ fn read_fasta(py: Python<'_>, path: &str, alphabet: &str) -> PyResult<PyObject> 
         }
     };
 
+    let path = path.to_owned();
     match alpha {
         SeqType::Dna => {
-            let batch = fasta::read_fasta_batch_from_path::<DnaSeq>(path).map_err(map_bio_err)?;
+            let batch = py
+                .allow_threads(|| fasta::read_fasta_batch_from_path::<DnaSeq>(&path))
+                .map_err(map_bio_err)?;
             let out = DNARecordBatch {
                 inner: batch,
                 skipped: Vec::new(),
@@ -45,7 +48,9 @@ fn read_fasta(py: Python<'_>, path: &str, alphabet: &str) -> PyResult<PyObject> 
             Ok(Py::new(py, out)?.to_object(py))
         }
         SeqType::Rna => {
-            let batch = fasta::read_fasta_batch_from_path::<RnaSeq>(path).map_err(map_bio_err)?;
+            let batch = py
+                .allow_threads(|| fasta::read_fasta_batch_from_path::<RnaSeq>(&path))
+                .map_err(map_bio_err)?;
             let out = RNARecordBatch {
                 inner: batch,
                 skipped: Vec::new(),
@@ -53,8 +58,9 @@ fn read_fasta(py: Python<'_>, path: &str, alphabet: &str) -> PyResult<PyObject> 
             Ok(Py::new(py, out)?.to_object(py))
         }
         SeqType::Protein => {
-            let batch =
-                fasta::read_fasta_batch_from_path::<ProteinSeq>(path).map_err(map_bio_err)?;
+            let batch = py
+                .allow_threads(|| fasta::read_fasta_batch_from_path::<ProteinSeq>(&path))
+                .map_err(map_bio_err)?;
             let out = ProteinRecordBatch {
                 inner: batch,
                 skipped: Vec::new(),

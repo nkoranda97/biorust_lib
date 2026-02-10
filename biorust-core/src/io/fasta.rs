@@ -41,7 +41,7 @@ impl<R: BufRead, S: SeqBytes> FastaRecords<R, S> {
                     self.line_no += 1;
                     let line_no = self.line_no;
                     if self.buf_line.starts_with('>') {
-                        return Some(Ok((self.buf_line.clone(), line_no)));
+                        return Some(Ok((std::mem::take(&mut self.buf_line), line_no)));
                     }
                     if self.buf_line.trim().is_empty() {
                         continue;
@@ -81,7 +81,7 @@ impl<R: BufRead, S: SeqBytes> Iterator for FastaRecords<R, S> {
                     self.line_no += 1;
                     let line_no = self.line_no;
                     if self.buf_line.starts_with('>') {
-                        self.pending_header = Some((self.buf_line.clone(), line_no));
+                        self.pending_header = Some((std::mem::take(&mut self.buf_line), line_no));
                         break;
                     }
                     for b in self.buf_line.bytes() {

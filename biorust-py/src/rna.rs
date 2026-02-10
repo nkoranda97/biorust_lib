@@ -45,16 +45,23 @@ impl RNA {
         }
     }
 
+    fn gc_content(&self) -> f64 {
+        self.inner.gc_content()
+    }
+
     fn back_transcribe(&self) -> DNA {
         DNA {
             inner: self.inner.back_transcribe(),
         }
     }
 
-    fn translate(&self) -> Protein {
-        Protein {
-            inner: self.inner.translate(),
-        }
+    fn translate(&self) -> PyResult<Protein> {
+        Ok(Protein {
+            inner: self
+                .inner
+                .translate()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+        })
     }
 
     #[inline]

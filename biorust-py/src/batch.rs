@@ -316,7 +316,10 @@ impl DNABatch {
 
     fn translate(&self, py: Python<'_>) -> PyResult<PyObject> {
         let out = ProteinBatch {
-            inner: self.inner.translate(),
+            inner: self
+                .inner
+                .translate()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
         };
         Ok(Py::new(py, out)?.to_object(py))
     }
@@ -558,7 +561,10 @@ impl RNABatch {
 
     fn translate(&self, py: Python<'_>) -> PyResult<PyObject> {
         let out = ProteinBatch {
-            inner: self.inner.translate(),
+            inner: self
+                .inner
+                .translate()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
         };
         Ok(Py::new(py, out)?.to_object(py))
     }

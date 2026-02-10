@@ -45,9 +45,13 @@ fn read_csv(
         }
     };
 
+    let path = path.to_owned();
     match alpha {
         SeqType::Dna => {
-            let report = core_csv::read_csv_dna(path, id_col, seq_col_sel, desc_col, on_error)
+            let report = py
+                .allow_threads(|| {
+                    core_csv::read_csv_dna(&path, id_col, seq_col_sel, desc_col, on_error)
+                })
                 .map_err(map_bio_err)?;
             let skipped = report
                 .skipped
@@ -61,7 +65,10 @@ fn read_csv(
             Ok(Py::new(py, out)?.to_object(py))
         }
         SeqType::Rna => {
-            let report = core_csv::read_csv_rna(path, id_col, seq_col_sel, desc_col, on_error)
+            let report = py
+                .allow_threads(|| {
+                    core_csv::read_csv_rna(&path, id_col, seq_col_sel, desc_col, on_error)
+                })
                 .map_err(map_bio_err)?;
             let skipped = report
                 .skipped
@@ -75,7 +82,10 @@ fn read_csv(
             Ok(Py::new(py, out)?.to_object(py))
         }
         SeqType::Protein => {
-            let report = core_csv::read_csv_protein(path, id_col, seq_col_sel, desc_col, on_error)
+            let report = py
+                .allow_threads(|| {
+                    core_csv::read_csv_protein(&path, id_col, seq_col_sel, desc_col, on_error)
+                })
                 .map_err(map_bio_err)?;
             let skipped = report
                 .skipped
@@ -93,19 +103,17 @@ fn read_csv(
 
 /// Peek at the first ~100 rows of the seq column to detect the alphabet.
 fn detect_csv_type(path: &str, seq_col: &ColumnSel) -> PyResult<SeqType> {
-    use std::fs::File;
-    use std::io::{BufRead, BufReader};
-
-    let file = File::open(path).map_err(|e| PyIOError::new_err(e.to_string()))?;
-    let reader = BufReader::new(file);
-    let mut lines = reader.lines();
-
-    // Parse header line to find seq column index
-    let header_line = lines
-        .next()
-        .ok_or_else(|| PyValueError::new_err("CSV file is empty"))?
+    let mut rdr = csv::ReaderBuilder::new()
+        .flexible(true)
+        .from_path(path)
         .map_err(|e| PyIOError::new_err(e.to_string()))?;
-    let headers: Vec<&str> = header_line.split(',').collect();
+
+    let headers = rdr
+        .headers()
+        .map_err(|e| PyIOError::new_err(e.to_string()))?;
+    if headers.is_empty() {
+        return Err(PyValueError::new_err("CSV file is empty"));
+    }
 
     let seq_idx = match seq_col {
         ColumnSel::Name(name) => headers
@@ -116,10 +124,9 @@ fn detect_csv_type(path: &str, seq_col: &ColumnSel) -> PyResult<SeqType> {
     };
 
     let mut sample = Vec::new();
-    for line in lines.take(100) {
-        let line = line.map_err(|e| PyIOError::new_err(e.to_string()))?;
-        let fields: Vec<&str> = line.split(',').collect();
-        if let Some(field) = fields.get(seq_idx) {
+    for result in rdr.records().take(100) {
+        let record = result.map_err(|e| PyIOError::new_err(e.to_string()))?;
+        if let Some(field) = record.get(seq_idx) {
             for b in field.bytes() {
                 if !b.is_ascii_whitespace() {
                     sample.push(b);

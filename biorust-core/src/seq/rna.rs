@@ -31,12 +31,16 @@ impl RnaSeq {
         &self.bytes
     }
 
-    pub fn len(&self) -> usize {
-        self.bytes.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.bytes.is_empty()
+    pub fn gc_content(&self) -> f64 {
+        if self.bytes.is_empty() {
+            return 0.0;
+        }
+        let gc = self
+            .bytes
+            .iter()
+            .filter(|&&b| matches!(b, b'G' | b'g' | b'C' | b'c'))
+            .count();
+        gc as f64 / self.bytes.len() as f64
     }
 
     pub fn reverse(&self) -> Self {
@@ -70,8 +74,17 @@ impl RnaSeq {
         DnaSeq::from_bytes_unchecked(out)
     }
 
-    pub fn translate(&self) -> ProteinSeq {
+    pub fn translate(&self) -> BioResult<ProteinSeq> {
         let bytes = self.as_bytes();
+        if bytes.len() % 3 != 0 {
+            return Err(BioError::TranslationError {
+                msg: format!(
+                    "sequence length {} is not a multiple of 3 ({} trailing bases would be lost)",
+                    bytes.len(),
+                    bytes.len() % 3
+                ),
+            });
+        }
         let mut out = Vec::with_capacity(bytes.len() / 3);
         let base_index = &*BASE_INDEX;
 
@@ -90,7 +103,7 @@ impl RnaSeq {
             out.push(aa);
         }
 
-        ProteinSeq::from_bytes_unchecked(out)
+        Ok(ProteinSeq::from_bytes_unchecked(out))
     }
 
     pub fn count<'a, N>(&'a self, sub: N) -> BioResult<usize>
@@ -199,7 +212,7 @@ mod tests {
     #[test]
     fn translate_basic() {
         let rna = RnaSeq::new(b"AUGGCC".to_vec()).unwrap();
-        let protein = rna.translate();
+        let protein = rna.translate().unwrap();
         assert_eq!(protein.as_bytes(), b"MA");
     }
 }

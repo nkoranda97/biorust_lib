@@ -10,3 +10,4 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = { version = "0.22", features = ["extension-module"] }
 biorust-core = { path = "../biorust-core" }
+csv = "1.3"

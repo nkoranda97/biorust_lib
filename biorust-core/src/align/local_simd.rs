@@ -31,15 +31,34 @@ pub fn align_local_score(
     let mut e = vec![v_neg_inf; seg_len];
 
     let last_seg = seg_len.saturating_sub(1);
-    let mut last_valid_lanes = [true; LANES];
-    if m % LANES != 0 {
-        for (lane, slot) in last_valid_lanes.iter_mut().enumerate() {
+    let needs_mask = m % LANES != 0;
+    // Precompute clamp vectors for invalid lanes.
+    // H invalid lanes → 0 (local alignment floors at zero).
+    // E invalid lanes → neg_inf (gap scores stay suppressed).
+    let v_clamp_h = if needs_mask {
+        let mut arr = [i16::MAX; LANES];
+        for (lane, slot) in arr.iter_mut().enumerate() {
             let idx = lane * seg_len + last_seg;
             if idx >= m {
-                *slot = false;
+                *slot = 0;
             }
         }
-    }
+        i16x16::from(arr)
+    } else {
+        i16x16::splat(i16::MAX)
+    };
+    let v_clamp_e = if needs_mask {
+        let mut arr = [i16::MAX; LANES];
+        for (lane, slot) in arr.iter_mut().enumerate() {
+            let idx = lane * seg_len + last_seg;
+            if idx >= m {
+                *slot = neg_inf;
+            }
+        }
+        i16x16::from(arr)
+    } else {
+        i16x16::splat(i16::MAX)
+    };
 
     let mut max_score: i16 = 0;
     let mut end_q: usize = 0;
@@ -60,28 +79,15 @@ pub fn align_local_score(
             v_h = v_h.max(v_f);
             v_h = v_h.max(v_zero);
 
-            if i == last_seg && m % LANES != 0 {
-                let mut arr = v_h.to_array();
-                for lane in 0..LANES {
-                    if !last_valid_lanes[lane] {
-                        arr[lane] = 0;
-                    }
-                }
-                v_h = i16x16::from(arr);
+            if i == last_seg && needs_mask {
+                v_h = v_h.min(v_clamp_h);
             }
             h[i] = v_h;
 
             let v_h_gap = v_h - v_gap_o;
-            let v_e_new = (v_e - v_gap_e).max(v_h_gap);
-            let mut v_e_new = v_e_new;
-            if i == last_seg && m % LANES != 0 {
-                let mut arr = v_e_new.to_array();
-                for lane in 0..LANES {
-                    if !last_valid_lanes[lane] {
-                        arr[lane] = neg_inf;
-                    }
-                }
-                v_e_new = i16x16::from(arr);
+            let mut v_e_new = (v_e - v_gap_e).max(v_h_gap);
+            if i == last_seg && needs_mask {
+                v_e_new = v_e_new.min(v_clamp_e);
             }
             e[i] = v_e_new;
             v_f = (v_f - v_gap_e).max(v_h_gap);
@@ -94,14 +100,8 @@ pub fn align_local_score(
             v_f = shift_left(v_f, neg_inf);
             for (i, h_slot) in h.iter_mut().enumerate() {
                 let mut v_h_i = (*h_slot).max(v_f);
-                if i == last_seg && m % LANES != 0 {
-                    let mut arr = v_h_i.to_array();
-                    for (lane, slot) in arr.iter_mut().enumerate() {
-                        if !last_valid_lanes[lane] {
-                            *slot = 0;
-                        }
-                    }
-                    v_h_i = i16x16::from(arr);
+                if i == last_seg && needs_mask {
+                    v_h_i = v_h_i.min(v_clamp_h);
                 }
                 *h_slot = v_h_i;
                 let v_h_gap = v_h_i - v_gap_o;
@@ -163,15 +163,31 @@ pub(crate) fn align_local_score_rows(
     let mut e = vec![v_neg_inf; seg_len];
 
     let last_seg = seg_len.saturating_sub(1);
-    let mut last_valid_lanes = [true; LANES];
-    if m % LANES != 0 {
-        for (lane, slot) in last_valid_lanes.iter_mut().enumerate() {
+    let needs_mask = m % LANES != 0;
+    let v_clamp_h = if needs_mask {
+        let mut arr = [i16::MAX; LANES];
+        for (lane, slot) in arr.iter_mut().enumerate() {
             let idx = lane * seg_len + last_seg;
             if idx >= m {
-                *slot = false;
+                *slot = 0;
             }
         }
-    }
+        i16x16::from(arr)
+    } else {
+        i16x16::splat(i16::MAX)
+    };
+    let v_clamp_e = if needs_mask {
+        let mut arr = [i16::MAX; LANES];
+        for (lane, slot) in arr.iter_mut().enumerate() {
+            let idx = lane * seg_len + last_seg;
+            if idx >= m {
+                *slot = neg_inf;
+            }
+        }
+        i16x16::from(arr)
+    } else {
+        i16x16::splat(i16::MAX)
+    };
 
     let mut rows = Vec::with_capacity(n);
 
@@ -190,28 +206,15 @@ pub(crate) fn align_local_score_rows(
             v_h = v_h.max(v_f);
             v_h = v_h.max(v_zero);
 
-            if i == last_seg && m % LANES != 0 {
-                let mut arr = v_h.to_array();
-                for lane in 0..LANES {
-                    if !last_valid_lanes[lane] {
-                        arr[lane] = 0;
-                    }
-                }
-                v_h = i16x16::from(arr);
+            if i == last_seg && needs_mask {
+                v_h = v_h.min(v_clamp_h);
             }
             h[i] = v_h;
 
             let v_h_gap = v_h - v_gap_o;
-            let v_e_new = (v_e - v_gap_e).max(v_h_gap);
-            let mut v_e_new = v_e_new;
-            if i == last_seg && m % LANES != 0 {
-                let mut arr = v_e_new.to_array();
-                for lane in 0..LANES {
-                    if !last_valid_lanes[lane] {
-                        arr[lane] = neg_inf;
-                    }
-                }
-                v_e_new = i16x16::from(arr);
+            let mut v_e_new = (v_e - v_gap_e).max(v_h_gap);
+            if i == last_seg && needs_mask {
+                v_e_new = v_e_new.min(v_clamp_e);
             }
             e[i] = v_e_new;
             v_f = (v_f - v_gap_e).max(v_h_gap);
@@ -223,14 +226,8 @@ pub(crate) fn align_local_score_rows(
             v_f = shift_left(v_f, neg_inf);
             for (i, h_slot) in h.iter_mut().enumerate() {
                 let mut v_h_i = (*h_slot).max(v_f);
-                if i == last_seg && m % LANES != 0 {
-                    let mut arr = v_h_i.to_array();
-                    for (lane, slot) in arr.iter_mut().enumerate() {
-                        if !last_valid_lanes[lane] {
-                            *slot = 0;
-                        }
-                    }
-                    v_h_i = i16x16::from(arr);
+                if i == last_seg && needs_mask {
+                    v_h_i = v_h_i.min(v_clamp_h);
                 }
                 *h_slot = v_h_i;
                 let v_h_gap = v_h_i - v_gap_o;

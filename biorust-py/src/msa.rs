@@ -6,6 +6,7 @@ use crate::gapped_dna::GappedDNA;
 use crate::gapped_protein::GappedProtein;
 use biorust_core::seq::gapped_dna::GappedDnaSeq;
 use biorust_core::seq::gapped_protein::GappedProteinSeq;
+use biorust_core::seq::traits::SeqBytes;
 
 #[inline]
 fn is_gap(b: u8) -> bool {

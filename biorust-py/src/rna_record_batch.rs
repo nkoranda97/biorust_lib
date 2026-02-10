@@ -1,6 +1,6 @@
 #![allow(clippy::useless_conversion)]
 
-use pyo3::exceptions::{PyIndexError, PyTypeError};
+use pyo3::exceptions::{PyIndexError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyModule, PySlice};
 
@@ -157,7 +157,10 @@ impl RNARecordBatch {
 
     fn translate(&self, py: Python<'_>) -> PyResult<PyObject> {
         let out = ProteinRecordBatch {
-            inner: self.inner.translate(),
+            inner: self
+                .inner
+                .translate()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
             skipped: Vec::new(),
         };
         Ok(Py::new(py, out)?.to_object(py))

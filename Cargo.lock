@@ -26,6 +26,7 @@ name = "biorust-py"
 version = "0.0.1"
 dependencies = [
  "biorust-core",
+ "csv",
  "pyo3",
 ]
 

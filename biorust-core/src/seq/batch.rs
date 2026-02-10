@@ -230,9 +230,13 @@ impl SeqBatch<DnaSeq> {
         SeqBatch { seqs: out }
     }
 
-    pub fn translate(&self) -> SeqBatch<ProteinSeq> {
-        let out = self.seqs.iter().map(|seq| seq.translate()).collect();
-        SeqBatch { seqs: out }
+    pub fn translate(&self) -> BioResult<SeqBatch<ProteinSeq>> {
+        let out: Vec<ProteinSeq> = self
+            .seqs
+            .iter()
+            .map(|seq| seq.translate())
+            .collect::<BioResult<_>>()?;
+        Ok(SeqBatch { seqs: out })
     }
 }
 
@@ -253,9 +257,13 @@ impl SeqBatch<RnaSeq> {
         SeqBatch { seqs: out }
     }
 
-    pub fn translate(&self) -> SeqBatch<ProteinSeq> {
-        let out = self.seqs.iter().map(|seq| seq.translate()).collect();
-        SeqBatch { seqs: out }
+    pub fn translate(&self) -> BioResult<SeqBatch<ProteinSeq>> {
+        let out: Vec<ProteinSeq> = self
+            .seqs
+            .iter()
+            .map(|seq| seq.translate())
+            .collect::<BioResult<_>>()?;
+        Ok(SeqBatch { seqs: out })
     }
 }
 
@@ -621,7 +629,7 @@ mod tests {
         let rna = batch.transcribe();
         assert_eq!(rna.to_bytes_vec(), vec![b"AUG".to_vec()]);
 
-        let protein = batch.translate();
+        let protein = batch.translate().unwrap();
         assert_eq!(protein.to_bytes_vec(), vec![b"M".to_vec()]);
     }
 
@@ -635,7 +643,7 @@ mod tests {
         let dna = batch.back_transcribe();
         assert_eq!(dna.to_bytes_vec(), vec![b"ATG".to_vec()]);
 
-        let protein = batch.translate();
+        let protein = batch.translate().unwrap();
         assert_eq!(protein.to_bytes_vec(), vec![b"M".to_vec()]);
     }
 

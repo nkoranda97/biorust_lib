@@ -38,14 +38,6 @@ impl GappedDnaSeq {
         &self.bytes
     }
 
-    pub fn len(&self) -> usize {
-        self.bytes.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.bytes.is_empty()
-    }
-
     /// Strip gap characters (`-` and `.`) and return a strict `DnaSeq`.
     pub fn ungapped(&self) -> DnaSeq {
         let out: Vec<u8> = self

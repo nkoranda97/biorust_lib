@@ -15,10 +15,12 @@ vector-map = "1.0.2"
 memchr = "2.7.6"
 csv = "1.3.0"
 wide = "0.7"
+rayon = { version = "1.10", optional = true }
 
 [features]
-default = ["simd"]
+default = ["simd", "parallel"]
 simd = []
+parallel = ["rayon"]
 
 [dev-dependencies]
 proptest = "1.4"

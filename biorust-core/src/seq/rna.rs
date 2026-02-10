@@ -4,6 +4,7 @@ use crate::seq::bytes::{self, IntoNeedle, Needle};
 use crate::seq::dna::{DnaSeq, ReverseComplement};
 use crate::seq::protein::ProteinSeq;
 use crate::seq::traits::SeqBytes;
+use crate::seq::{best_frame_index, TranslationFrame};
 use std::sync::LazyLock;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -85,25 +86,54 @@ impl RnaSeq {
                 ),
             });
         }
-        let mut out = Vec::with_capacity(bytes.len() / 3);
-        let base_index = &*BASE_INDEX;
+        Ok(translate_bytes(bytes, &BASE_INDEX))
+    }
 
-        for codon in bytes.chunks_exact(3) {
-            let i1 = base_index[codon[0] as usize];
-            let i2 = base_index[codon[1] as usize];
-            let i3 = base_index[codon[2] as usize];
-
-            let aa = if i1 < 4 && i2 < 4 && i3 < 4 {
-                let idx = ((i1 as usize) << 4) | ((i2 as usize) << 2) | (i3 as usize);
-                CODON_TABLE[idx]
-            } else {
-                b'X'
-            };
-
-            out.push(aa);
+    pub fn translate_frame(&self, frame: TranslationFrame) -> BioResult<ProteinSeq> {
+        match frame {
+            TranslationFrame::One => {
+                let bytes = self.as_bytes();
+                let len = bytes.len() / 3 * 3;
+                Ok(translate_bytes(&bytes[..len], &BASE_INDEX))
+            }
+            TranslationFrame::Two => {
+                let bytes = self.as_bytes();
+                if bytes.len() < 2 {
+                    return Ok(ProteinSeq::from_bytes_unchecked(Vec::new()));
+                }
+                let slice = &bytes[1..];
+                let len = slice.len() / 3 * 3;
+                Ok(translate_bytes(&slice[..len], &BASE_INDEX))
+            }
+            TranslationFrame::Three => {
+                let bytes = self.as_bytes();
+                if bytes.len() < 3 {
+                    return Ok(ProteinSeq::from_bytes_unchecked(Vec::new()));
+                }
+                let slice = &bytes[2..];
+                let len = slice.len() / 3 * 3;
+                Ok(translate_bytes(&slice[..len], &BASE_INDEX))
+            }
+            TranslationFrame::Auto => {
+                let bytes = self.as_bytes();
+                let mut candidates: [Vec<u8>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+                for offset in 0..3 {
+                    if bytes.len() > offset {
+                        let slice = &bytes[offset..];
+                        let len = slice.len() / 3 * 3;
+                        candidates[offset] = translate_to_vec(&slice[..len], &BASE_INDEX);
+                    }
+                }
+                let idx = best_frame_index([
+                    &candidates[0],
+                    &candidates[1],
+                    &candidates[2],
+                ]);
+                Ok(ProteinSeq::from_bytes_unchecked(
+                    std::mem::take(&mut candidates[idx]),
+                ))
+            }
         }
-
-        Ok(ProteinSeq::from_bytes_unchecked(out))
     }
 
     pub fn count<'a, N>(&'a self, sub: N) -> BioResult<usize>
@@ -176,6 +206,27 @@ impl<'a> IntoNeedle<'a> for &'a RnaSeq {
     }
 }
 
+fn translate_to_vec(bytes: &[u8], base_index: &[u8; 256]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(bytes.len() / 3);
+    for codon in bytes.chunks_exact(3) {
+        let i1 = base_index[codon[0] as usize];
+        let i2 = base_index[codon[1] as usize];
+        let i3 = base_index[codon[2] as usize];
+        let aa = if i1 < 4 && i2 < 4 && i3 < 4 {
+            let idx = ((i1 as usize) << 4) | ((i2 as usize) << 2) | (i3 as usize);
+            CODON_TABLE[idx]
+        } else {
+            b'X'
+        };
+        out.push(aa);
+    }
+    out
+}
+
+fn translate_bytes(bytes: &[u8], base_index: &[u8; 256]) -> ProteinSeq {
+    ProteinSeq::from_bytes_unchecked(translate_to_vec(bytes, base_index))
+}
+
 static BASE_INDEX: LazyLock<[u8; 256]> = LazyLock::new(|| {
     let mut map = [255u8; 256];
     map[b'A' as usize] = 0;
@@ -214,5 +265,33 @@ mod tests {
         let rna = RnaSeq::new(b"AUGGCC".to_vec()).unwrap();
         let protein = rna.translate().unwrap();
         assert_eq!(protein.as_bytes(), b"MA");
+    }
+
+    #[test]
+    fn translate_strict_rejects_non_multiple_of_3() {
+        let s = RnaSeq::new(b"AUGA".to_vec()).unwrap();
+        assert!(s.translate().is_err());
+    }
+
+    #[test]
+    fn translate_frame_one_drops_trailing() {
+        let s = RnaSeq::new(b"AUGGCCA".to_vec()).unwrap();
+        let p = s.translate_frame(TranslationFrame::One).unwrap();
+        assert_eq!(p.as_bytes(), b"MA");
+    }
+
+    #[test]
+    fn translate_frame_two() {
+        let s = RnaSeq::new(b"AAUGGCC".to_vec()).unwrap();
+        let p = s.translate_frame(TranslationFrame::Two).unwrap();
+        assert_eq!(p.as_bytes(), b"MA");
+    }
+
+    #[test]
+    fn translate_frame_auto() {
+        let s = RnaSeq::new(b"CAUGGCC".to_vec()).unwrap();
+        let p = s.translate_frame(TranslationFrame::Auto).unwrap();
+        // Frame 2 (offset 1): AUGGCC -> "MA" has M, best ORF
+        assert_eq!(p.as_bytes(), b"MA");
     }
 }

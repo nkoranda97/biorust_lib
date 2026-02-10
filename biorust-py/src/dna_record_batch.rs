@@ -8,6 +8,7 @@ use crate::batch::DNABatch;
 use crate::dna_record::DNARecord;
 use crate::protein_record_batch::ProteinRecordBatch;
 use crate::report::SkippedRecord;
+use crate::utils;
 use biorust_core::seq::batch::SeqBatch;
 use biorust_core::seq::dna::DnaSeq;
 use biorust_core::seq::record::SeqRecord;
@@ -155,12 +156,15 @@ impl DNARecordBatch {
         }
     }
 
-    fn translate(&self, py: Python<'_>) -> PyResult<PyObject> {
+    #[pyo3(signature = (frame=None))]
+    fn translate(&self, py: Python<'_>, frame: Option<&Bound<'_, PyAny>>) -> PyResult<PyObject> {
+        let inner = match frame {
+            None => self.inner.translate(),
+            Some(f) => self.inner.translate_frame(utils::parse_frame(f)?),
+        }
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
         let out = ProteinRecordBatch {
-            inner: self
-                .inner
-                .translate()
-                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            inner,
             skipped: Vec::new(),
         };
         Ok(Py::new(py, out)?.to_object(py))

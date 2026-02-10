@@ -112,6 +112,31 @@ pub fn extract_protein_needle<'py>(obj: &'py Bound<'py, PyAny>) -> PyResult<PyPr
     ))
 }
 
+pub fn parse_frame(obj: &Bound<'_, PyAny>) -> PyResult<biorust_core::seq::TranslationFrame> {
+    use biorust_core::seq::TranslationFrame;
+
+    if let Ok(s) = obj.downcast::<PyString>() {
+        let s = s.to_str()?;
+        if s.eq_ignore_ascii_case("auto") {
+            return Ok(TranslationFrame::Auto);
+        }
+        return Err(PyValueError::new_err(
+            "frame must be 1, 2, 3, or \"auto\"",
+        ));
+    }
+
+    if let Ok(n) = obj.extract::<i64>() {
+        return match n {
+            1 => Ok(TranslationFrame::One),
+            2 => Ok(TranslationFrame::Two),
+            3 => Ok(TranslationFrame::Three),
+            _ => Err(PyValueError::new_err("frame must be 1, 2, 3, or \"auto\"")),
+        };
+    }
+
+    Err(PyValueError::new_err("frame must be 1, 2, 3, or \"auto\""))
+}
+
 pub fn normalize_range(len: usize, start: Option<isize>, end: Option<isize>) -> (usize, usize) {
     let n = len as isize;
 

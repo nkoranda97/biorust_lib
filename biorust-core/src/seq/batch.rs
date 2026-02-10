@@ -5,6 +5,7 @@ use crate::seq::dna::ReverseComplement;
 use crate::seq::protein::ProteinSeq;
 use crate::seq::rna::RnaSeq;
 use crate::seq::traits::SeqBytes;
+use crate::seq::TranslationFrame;
 use std::ops::Index;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -147,40 +148,31 @@ impl<S: SeqBytes> SeqBatch<S> {
     }
 
     pub fn lengths(&self) -> Vec<usize> {
-        self.seqs.iter().map(|seq| seq.as_bytes().len()).collect()
+        par_map!(&self.seqs, |seq| seq.as_bytes().len())
     }
 
     pub fn to_bytes_vec(&self) -> Vec<Vec<u8>> {
-        self.seqs
-            .iter()
-            .map(|seq| seq.as_bytes().to_vec())
-            .collect()
+        par_map!(&self.seqs, |seq| seq.as_bytes().to_vec())
     }
 
     /// Map over raw bytes and re-validate sequences.
     /// Prefer `map` for transformations that don't need bytes access.
     pub fn map_bytes<F>(&self, f: F) -> BioResult<Self>
     where
-        F: Fn(&[u8]) -> Vec<u8>,
+        F: Fn(&[u8]) -> Vec<u8> + Sync,
     {
-        let mut out = Vec::with_capacity(self.seqs.len());
-        for seq in &self.seqs {
-            let bytes = f(seq.as_bytes());
-            out.push(S::from_bytes(bytes)?);
-        }
-        Ok(Self { seqs: out })
+        let out: BioResult<Vec<S>> =
+            par_try_map!(&self.seqs, |seq| S::from_bytes(f(seq.as_bytes())));
+        Ok(Self { seqs: out? })
     }
 
     pub fn map_bytes_in_place<F>(&mut self, f: F) -> BioResult<()>
     where
-        F: Fn(&[u8]) -> Vec<u8>,
+        F: Fn(&[u8]) -> Vec<u8> + Sync,
     {
-        let mut out = Vec::with_capacity(self.seqs.len());
-        for seq in &self.seqs {
-            let bytes = f(seq.as_bytes());
-            out.push(S::from_bytes(bytes)?);
-        }
-        self.seqs = out;
+        let out: BioResult<Vec<S>> =
+            par_try_map!(&self.seqs, |seq| S::from_bytes(f(seq.as_bytes())));
+        self.seqs = out?;
         Ok(())
     }
 }
@@ -198,159 +190,139 @@ where
     S: SeqBytes + ReverseComplement,
 {
     pub fn reverse_complements(&self) -> Self {
-        let out = self
-            .seqs
-            .iter()
-            .map(|seq| seq.reverse_complement())
-            .collect();
-        Self { seqs: out }
+        Self {
+            seqs: par_map!(&self.seqs, |seq| seq.reverse_complement()),
+        }
     }
 
     pub fn reverse_complements_in_place(&mut self) {
-        for seq in &mut self.seqs {
+        par_for_each_mut!(&mut self.seqs, |seq| {
             *seq = seq.reverse_complement();
-        }
+        });
     }
 }
 
 impl SeqBatch<DnaSeq> {
     pub fn complements(&self) -> Self {
-        let out = self.seqs.iter().map(|seq| seq.complement()).collect();
-        Self { seqs: out }
-    }
-
-    pub fn complements_in_place(&mut self) {
-        for seq in &mut self.seqs {
-            *seq = seq.complement();
+        Self {
+            seqs: par_map!(&self.seqs, |seq| seq.complement()),
         }
     }
 
+    pub fn complements_in_place(&mut self) {
+        par_for_each_mut!(&mut self.seqs, |seq| {
+            *seq = seq.complement();
+        });
+    }
+
     pub fn transcribe(&self) -> SeqBatch<RnaSeq> {
-        let out = self.seqs.iter().map(|seq| seq.transcribe()).collect();
-        SeqBatch { seqs: out }
+        SeqBatch {
+            seqs: par_map!(&self.seqs, |seq| seq.transcribe()),
+        }
     }
 
     pub fn translate(&self) -> BioResult<SeqBatch<ProteinSeq>> {
-        let out: Vec<ProteinSeq> = self
-            .seqs
-            .iter()
-            .map(|seq| seq.translate())
-            .collect::<BioResult<_>>()?;
-        Ok(SeqBatch { seqs: out })
+        let out: BioResult<Vec<ProteinSeq>> = par_try_map!(&self.seqs, |seq| seq.translate());
+        Ok(SeqBatch { seqs: out? })
+    }
+
+    pub fn translate_frame(&self, frame: TranslationFrame) -> BioResult<SeqBatch<ProteinSeq>> {
+        let out: BioResult<Vec<ProteinSeq>> =
+            par_try_map!(&self.seqs, |seq| seq.translate_frame(frame));
+        Ok(SeqBatch { seqs: out? })
     }
 }
 
 impl SeqBatch<RnaSeq> {
     pub fn complements(&self) -> Self {
-        let out = self.seqs.iter().map(|seq| seq.complement()).collect();
-        Self { seqs: out }
-    }
-
-    pub fn complements_in_place(&mut self) {
-        for seq in &mut self.seqs {
-            *seq = seq.complement();
+        Self {
+            seqs: par_map!(&self.seqs, |seq| seq.complement()),
         }
     }
 
+    pub fn complements_in_place(&mut self) {
+        par_for_each_mut!(&mut self.seqs, |seq| {
+            *seq = seq.complement();
+        });
+    }
+
     pub fn back_transcribe(&self) -> SeqBatch<DnaSeq> {
-        let out = self.seqs.iter().map(|seq| seq.back_transcribe()).collect();
-        SeqBatch { seqs: out }
+        SeqBatch {
+            seqs: par_map!(&self.seqs, |seq| seq.back_transcribe()),
+        }
     }
 
     pub fn translate(&self) -> BioResult<SeqBatch<ProteinSeq>> {
-        let out: Vec<ProteinSeq> = self
-            .seqs
-            .iter()
-            .map(|seq| seq.translate())
-            .collect::<BioResult<_>>()?;
-        Ok(SeqBatch { seqs: out })
+        let out: BioResult<Vec<ProteinSeq>> = par_try_map!(&self.seqs, |seq| seq.translate());
+        Ok(SeqBatch { seqs: out? })
+    }
+
+    pub fn translate_frame(&self, frame: TranslationFrame) -> BioResult<SeqBatch<ProteinSeq>> {
+        let out: BioResult<Vec<ProteinSeq>> =
+            par_try_map!(&self.seqs, |seq| seq.translate_frame(frame));
+        Ok(SeqBatch { seqs: out? })
     }
 }
 
 impl SeqBatch<ProteinSeq> {
     pub fn reverse(&self) -> Self {
-        let out = self.seqs.iter().map(|seq| seq.reverse()).collect();
-        Self { seqs: out }
+        Self {
+            seqs: par_map!(&self.seqs, |seq| seq.reverse()),
+        }
     }
 
     pub fn reverse_in_place(&mut self) {
-        for seq in &mut self.seqs {
+        par_for_each_mut!(&mut self.seqs, |seq| {
             *seq = seq.reverse();
-        }
+        });
     }
 
     pub fn counts(&self) -> Vec<[u32; 256]> {
-        self.seqs.iter().map(|seq| seq.counts()).collect()
+        par_map!(&self.seqs, |seq| seq.counts())
     }
 
     pub fn frequencies(&self) -> Vec<[f64; 256]> {
-        self.seqs.iter().map(|seq| seq.frequencies()).collect()
+        par_map!(&self.seqs, |seq| seq.frequencies())
     }
 
     pub fn aa_counts_20(&self) -> Vec<[u32; 20]> {
-        self.seqs.iter().map(|seq| seq.aa_counts_20()).collect()
+        par_map!(&self.seqs, |seq| seq.aa_counts_20())
     }
 
     pub fn aa_frequencies_20(&self) -> Vec<[f64; 20]> {
-        self.seqs
-            .iter()
-            .map(|seq| seq.aa_frequencies_20())
-            .collect()
+        par_map!(&self.seqs, |seq| seq.aa_frequencies_20())
     }
 
     pub fn shannon_entropy(&self) -> Vec<f64> {
-        self.seqs.iter().map(|seq| seq.shannon_entropy()).collect()
+        par_map!(&self.seqs, |seq| seq.shannon_entropy())
     }
 
     pub fn molecular_weight(&self) -> BioResult<Vec<f64>> {
-        let mut out = Vec::with_capacity(self.seqs.len());
-        for seq in &self.seqs {
-            out.push(seq.molecular_weight()?);
-        }
-        Ok(out)
+        par_try_map!(&self.seqs, |seq| seq.molecular_weight())
     }
 
     pub fn hydrophobicity(&self) -> BioResult<Vec<f64>> {
-        let mut out = Vec::with_capacity(self.seqs.len());
-        for seq in &self.seqs {
-            out.push(seq.hydrophobicity()?);
-        }
-        Ok(out)
+        par_try_map!(&self.seqs, |seq| seq.hydrophobicity())
     }
 
     pub fn hydrophobicity_profile(&self, window: usize) -> BioResult<Vec<Vec<f64>>> {
-        let mut out = Vec::with_capacity(self.seqs.len());
-        for seq in &self.seqs {
-            out.push(seq.hydrophobicity_profile(window)?);
-        }
-        Ok(out)
+        par_try_map!(&self.seqs, |seq| seq.hydrophobicity_profile(window))
     }
 
     pub fn net_charge(&self, ph: f64) -> BioResult<Vec<f64>> {
-        let mut out = Vec::with_capacity(self.seqs.len());
-        for seq in &self.seqs {
-            out.push(seq.net_charge(ph)?);
-        }
-        Ok(out)
+        par_try_map!(&self.seqs, |seq| seq.net_charge(ph))
     }
 
     pub fn isoelectric_point(&self) -> BioResult<Vec<f64>> {
-        let mut out = Vec::with_capacity(self.seqs.len());
-        for seq in &self.seqs {
-            out.push(seq.isoelectric_point()?);
-        }
-        Ok(out)
+        par_try_map!(&self.seqs, |seq| seq.isoelectric_point())
     }
 
     pub fn has_ambiguous(&self) -> Vec<bool> {
-        self.seqs.iter().map(|seq| seq.has_ambiguous()).collect()
+        par_map!(&self.seqs, |seq| seq.has_ambiguous())
     }
 
     pub fn unknown_positions(&self) -> Vec<Vec<usize>> {
-        self.seqs
-            .iter()
-            .map(|seq| seq.unknown_positions())
-            .collect()
+        par_map!(&self.seqs, |seq| seq.unknown_positions())
     }
 }
 
@@ -401,24 +373,16 @@ where
 {
     pub fn count<'a, N>(&'a self, sub: N) -> BioResult<Vec<usize>>
     where
-        N: IntoNeedle<'a> + Copy,
+        N: IntoNeedle<'a> + Copy + Sync,
     {
-        let mut out = Vec::with_capacity(self.seqs.len());
-        for seq in &self.seqs {
-            out.push(seq.count(sub)?);
-        }
-        Ok(out)
+        par_try_map!(&self.seqs, |seq| seq.count(sub))
     }
 
     pub fn contains<'a, N>(&'a self, sub: N) -> BioResult<Vec<bool>>
     where
-        N: IntoNeedle<'a> + Copy,
+        N: IntoNeedle<'a> + Copy + Sync,
     {
-        let mut out = Vec::with_capacity(self.seqs.len());
-        for seq in &self.seqs {
-            out.push(seq.contains(sub)?);
-        }
-        Ok(out)
+        par_try_map!(&self.seqs, |seq| seq.contains(sub))
     }
 }
 

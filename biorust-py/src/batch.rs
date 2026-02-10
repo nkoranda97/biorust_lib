@@ -7,6 +7,7 @@ use pyo3::types::{PyAny, PyList, PySlice};
 use crate::dna::DNA;
 use crate::protein::Protein;
 use crate::rna::RNA;
+use crate::utils;
 use biorust_core::seq::batch::SeqBatch;
 use biorust_core::seq::dna::DnaSeq;
 use biorust_core::seq::protein::ProteinSeq;
@@ -298,30 +299,29 @@ impl DNABatch {
     #[pyo3(signature = (inplace=false))]
     fn complement(&mut self, py: Python<'_>, inplace: bool) -> PyResult<PyObject> {
         if inplace {
-            self.inner.complements_in_place();
+            py.allow_threads(|| self.inner.complements_in_place());
             return Ok(py.None());
         }
-        let out = DNABatch {
-            inner: self.inner.complements(),
-        };
-        Ok(Py::new(py, out)?.to_object(py))
+        let inner = py.allow_threads(|| self.inner.complements());
+        Ok(Py::new(py, DNABatch { inner })?.to_object(py))
     }
 
     fn transcribe(&self, py: Python<'_>) -> PyResult<PyObject> {
-        let out = RNABatch {
-            inner: self.inner.transcribe(),
-        };
-        Ok(Py::new(py, out)?.to_object(py))
+        let inner = py.allow_threads(|| self.inner.transcribe());
+        Ok(Py::new(py, RNABatch { inner })?.to_object(py))
     }
 
-    fn translate(&self, py: Python<'_>) -> PyResult<PyObject> {
-        let out = ProteinBatch {
-            inner: self
-                .inner
-                .translate()
-                .map_err(|e| PyValueError::new_err(e.to_string()))?,
-        };
-        Ok(Py::new(py, out)?.to_object(py))
+    #[pyo3(signature = (frame=None))]
+    fn translate(&self, py: Python<'_>, frame: Option<&Bound<'_, PyAny>>) -> PyResult<PyObject> {
+        let inner = match frame {
+            None => py.allow_threads(|| self.inner.translate()),
+            Some(f) => {
+                let frame = utils::parse_frame(f)?;
+                py.allow_threads(|| self.inner.translate_frame(frame))
+            }
+        }
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        Ok(Py::new(py, ProteinBatch { inner })?.to_object(py))
     }
 
     fn count(&self, needle: &Bound<'_, PyAny>) -> PyResult<Vec<usize>> {
@@ -406,14 +406,12 @@ impl DNABatch {
     #[pyo3(signature = (inplace=false))]
     fn reverse_complements(&mut self, py: Python<'_>, inplace: bool) -> PyResult<PyObject> {
         if inplace {
-            self.inner.reverse_complements_in_place();
+            py.allow_threads(|| self.inner.reverse_complements_in_place());
             return Ok(py.None());
         }
 
-        let out = DNABatch {
-            inner: self.inner.reverse_complements(),
-        };
-        Ok(Py::new(py, out)?.to_object(py))
+        let inner = py.allow_threads(|| self.inner.reverse_complements());
+        Ok(Py::new(py, DNABatch { inner })?.to_object(py))
     }
 }
 
@@ -543,30 +541,29 @@ impl RNABatch {
     #[pyo3(signature = (inplace=false))]
     fn complement(&mut self, py: Python<'_>, inplace: bool) -> PyResult<PyObject> {
         if inplace {
-            self.inner.complements_in_place();
+            py.allow_threads(|| self.inner.complements_in_place());
             return Ok(py.None());
         }
-        let out = RNABatch {
-            inner: self.inner.complements(),
-        };
-        Ok(Py::new(py, out)?.to_object(py))
+        let inner = py.allow_threads(|| self.inner.complements());
+        Ok(Py::new(py, RNABatch { inner })?.to_object(py))
     }
 
     fn back_transcribe(&self, py: Python<'_>) -> PyResult<PyObject> {
-        let out = DNABatch {
-            inner: self.inner.back_transcribe(),
-        };
-        Ok(Py::new(py, out)?.to_object(py))
+        let inner = py.allow_threads(|| self.inner.back_transcribe());
+        Ok(Py::new(py, DNABatch { inner })?.to_object(py))
     }
 
-    fn translate(&self, py: Python<'_>) -> PyResult<PyObject> {
-        let out = ProteinBatch {
-            inner: self
-                .inner
-                .translate()
-                .map_err(|e| PyValueError::new_err(e.to_string()))?,
-        };
-        Ok(Py::new(py, out)?.to_object(py))
+    #[pyo3(signature = (frame=None))]
+    fn translate(&self, py: Python<'_>, frame: Option<&Bound<'_, PyAny>>) -> PyResult<PyObject> {
+        let inner = match frame {
+            None => py.allow_threads(|| self.inner.translate()),
+            Some(f) => {
+                let frame = utils::parse_frame(f)?;
+                py.allow_threads(|| self.inner.translate_frame(frame))
+            }
+        }
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        Ok(Py::new(py, ProteinBatch { inner })?.to_object(py))
     }
 
     fn append(&mut self, seq: &Bound<'_, PyAny>) -> PyResult<()> {
@@ -633,14 +630,12 @@ impl RNABatch {
     #[pyo3(signature = (inplace=false))]
     fn reverse_complements(&mut self, py: Python<'_>, inplace: bool) -> PyResult<PyObject> {
         if inplace {
-            self.inner.reverse_complements_in_place();
+            py.allow_threads(|| self.inner.reverse_complements_in_place());
             return Ok(py.None());
         }
 
-        let out = RNABatch {
-            inner: self.inner.reverse_complements(),
-        };
-        Ok(Py::new(py, out)?.to_object(py))
+        let inner = py.allow_threads(|| self.inner.reverse_complements());
+        Ok(Py::new(py, RNABatch { inner })?.to_object(py))
     }
 }
 
@@ -770,87 +765,68 @@ impl ProteinBatch {
     #[pyo3(signature = (inplace=false))]
     fn reverse(&mut self, py: Python<'_>, inplace: bool) -> PyResult<PyObject> {
         if inplace {
-            self.inner.reverse_in_place();
+            py.allow_threads(|| self.inner.reverse_in_place());
             return Ok(py.None());
         }
-        let out = ProteinBatch {
-            inner: self.inner.reverse(),
-        };
-        Ok(Py::new(py, out)?.to_object(py))
+        let inner = py.allow_threads(|| self.inner.reverse());
+        Ok(Py::new(py, ProteinBatch { inner })?.to_object(py))
     }
 
-    fn counts(&self) -> Vec<Vec<(String, u32)>> {
-        self.inner
-            .counts()
-            .iter()
-            .map(protein_counts_to_pairs)
-            .collect()
+    fn counts(&self, py: Python<'_>) -> Vec<Vec<(String, u32)>> {
+        let raw = py.allow_threads(|| self.inner.counts());
+        raw.iter().map(protein_counts_to_pairs).collect()
     }
 
-    fn frequencies(&self) -> Vec<Vec<(String, f64)>> {
-        self.inner
-            .frequencies()
-            .iter()
-            .map(protein_freq_to_pairs)
-            .collect()
+    fn frequencies(&self, py: Python<'_>) -> Vec<Vec<(String, f64)>> {
+        let raw = py.allow_threads(|| self.inner.frequencies());
+        raw.iter().map(protein_freq_to_pairs).collect()
     }
 
-    fn aa_counts_20(&self) -> Vec<Vec<(String, u32)>> {
-        self.inner
-            .aa_counts_20()
-            .iter()
-            .map(protein_counts_20_to_pairs)
-            .collect()
+    fn aa_counts_20(&self, py: Python<'_>) -> Vec<Vec<(String, u32)>> {
+        let raw = py.allow_threads(|| self.inner.aa_counts_20());
+        raw.iter().map(protein_counts_20_to_pairs).collect()
     }
 
-    fn aa_frequencies_20(&self) -> Vec<Vec<(String, f64)>> {
-        self.inner
-            .aa_frequencies_20()
-            .iter()
-            .map(protein_freq_20_to_pairs)
-            .collect()
+    fn aa_frequencies_20(&self, py: Python<'_>) -> Vec<Vec<(String, f64)>> {
+        let raw = py.allow_threads(|| self.inner.aa_frequencies_20());
+        raw.iter().map(protein_freq_20_to_pairs).collect()
     }
 
-    fn shannon_entropy(&self) -> Vec<f64> {
-        self.inner.shannon_entropy()
+    fn shannon_entropy(&self, py: Python<'_>) -> Vec<f64> {
+        py.allow_threads(|| self.inner.shannon_entropy())
     }
 
-    fn molecular_weight(&self) -> PyResult<Vec<f64>> {
-        self.inner
-            .molecular_weight()
+    fn molecular_weight(&self, py: Python<'_>) -> PyResult<Vec<f64>> {
+        py.allow_threads(|| self.inner.molecular_weight())
             .map_err(|err| PyValueError::new_err(err.to_string()))
     }
 
-    fn hydrophobicity(&self) -> PyResult<Vec<f64>> {
-        self.inner
-            .hydrophobicity()
+    fn hydrophobicity(&self, py: Python<'_>) -> PyResult<Vec<f64>> {
+        py.allow_threads(|| self.inner.hydrophobicity())
             .map_err(|err| PyValueError::new_err(err.to_string()))
     }
 
-    fn hydrophobicity_profile(&self, window: usize) -> PyResult<Vec<Vec<f64>>> {
-        self.inner
-            .hydrophobicity_profile(window)
+    fn hydrophobicity_profile(&self, py: Python<'_>, window: usize) -> PyResult<Vec<Vec<f64>>> {
+        py.allow_threads(|| self.inner.hydrophobicity_profile(window))
             .map_err(|err| PyValueError::new_err(err.to_string()))
     }
 
-    fn net_charge(&self, ph: f64) -> PyResult<Vec<f64>> {
-        self.inner
-            .net_charge(ph)
+    fn net_charge(&self, py: Python<'_>, ph: f64) -> PyResult<Vec<f64>> {
+        py.allow_threads(|| self.inner.net_charge(ph))
             .map_err(|err| PyValueError::new_err(err.to_string()))
     }
 
-    fn isoelectric_point(&self) -> PyResult<Vec<f64>> {
-        self.inner
-            .isoelectric_point()
+    fn isoelectric_point(&self, py: Python<'_>) -> PyResult<Vec<f64>> {
+        py.allow_threads(|| self.inner.isoelectric_point())
             .map_err(|err| PyValueError::new_err(err.to_string()))
     }
 
-    fn has_ambiguous(&self) -> Vec<bool> {
-        self.inner.has_ambiguous()
+    fn has_ambiguous(&self, py: Python<'_>) -> Vec<bool> {
+        py.allow_threads(|| self.inner.has_ambiguous())
     }
 
-    fn unknown_positions(&self) -> Vec<Vec<usize>> {
-        self.inner.unknown_positions()
+    fn unknown_positions(&self, py: Python<'_>) -> Vec<Vec<usize>> {
+        py.allow_threads(|| self.inner.unknown_positions())
     }
 
     fn count(&self, needle: &Bound<'_, PyAny>) -> PyResult<Vec<usize>> {

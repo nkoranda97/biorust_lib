@@ -55,13 +55,14 @@ impl DNA {
         }
     }
 
-    fn translate(&self) -> PyResult<Protein> {
-        Ok(Protein {
-            inner: self
-                .inner
-                .translate()
-                .map_err(|e| PyValueError::new_err(e.to_string()))?,
-        })
+    #[pyo3(signature = (frame=None))]
+    fn translate(&self, frame: Option<&Bound<'_, PyAny>>) -> PyResult<Protein> {
+        let inner = match frame {
+            None => self.inner.translate(),
+            Some(f) => self.inner.translate_frame(utils::parse_frame(f)?),
+        }
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        Ok(Protein { inner })
     }
 
     #[inline]

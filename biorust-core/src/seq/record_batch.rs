@@ -6,6 +6,7 @@ use crate::seq::protein::ProteinSeq;
 use crate::seq::record::SeqRecord;
 use crate::seq::rna::RnaSeq;
 use crate::seq::traits::SeqBytes;
+use crate::seq::TranslationFrame;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecordBatch<S: SeqBytes> {
@@ -233,6 +234,21 @@ impl RecordBatch<DnaSeq> {
         })
     }
 
+    pub fn translate_frame(
+        &self,
+        frame: TranslationFrame,
+    ) -> BioResult<RecordBatch<ProteinSeq>> {
+        let seqs = self.seqs.translate_frame(frame)?.into_vec();
+        let empty_features: Vec<Vec<SeqFeature>> = vec![Vec::new(); seqs.len()];
+        Ok(RecordBatch {
+            ids: self.ids.clone(),
+            descs: self.descs.clone(),
+            seqs: SeqBatch::new(seqs),
+            features: empty_features,
+            annotations: self.annotations.clone(),
+        })
+    }
+
     pub fn reverse_complements(&self) -> Self {
         let seqs = self.seqs.reverse_complements().into_vec();
         let mut features = Vec::with_capacity(self.features.len());
@@ -270,6 +286,21 @@ impl RecordBatch<RnaSeq> {
     /// don't map to protein coordinates.
     pub fn translate(&self) -> BioResult<RecordBatch<ProteinSeq>> {
         let seqs = self.seqs.translate()?.into_vec();
+        let empty_features: Vec<Vec<SeqFeature>> = vec![Vec::new(); seqs.len()];
+        Ok(RecordBatch {
+            ids: self.ids.clone(),
+            descs: self.descs.clone(),
+            seqs: SeqBatch::new(seqs),
+            features: empty_features,
+            annotations: self.annotations.clone(),
+        })
+    }
+
+    pub fn translate_frame(
+        &self,
+        frame: TranslationFrame,
+    ) -> BioResult<RecordBatch<ProteinSeq>> {
+        let seqs = self.seqs.translate_frame(frame)?.into_vec();
         let empty_features: Vec<Vec<SeqFeature>> = vec![Vec::new(); seqs.len()];
         Ok(RecordBatch {
             ids: self.ids.clone(),

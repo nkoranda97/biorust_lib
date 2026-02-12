@@ -78,3 +78,14 @@ def test_global_dna_longer_no_end_gap():
     )
     res = align_global(q, t, scoring, traceback=False)
     assert res.score == 56.5
+
+def test_global_protein_no_end_gap():
+    q = Protein("MGDVEKGKKIFIMKCSQCHTVEKGGKHKTGPNLHGLFGRKTGQAPGYSYTAANKNKGIIWGEDTLMEYLENPKKYIPGTKMIFVGIKKKEERADLIAYLKKATNE")
+    t = Protein("MGDVEKGKKIFVQKCAQCHTVEKGGKHKTGPNLHGLFGRKTGQAAGFSYTDANKNKGITWGEDTLMEYLENPKKYIPGTKMIFAGIKKKGERADLIAYLKKATNE")
+    scoring = Scoring(
+        gap_open=-10.0,
+        gap_extend=-0.5,
+        end_gap=False,
+    )
+    res = align_global(q, t, scoring, traceback=False)
+    assert res.score == 522.0

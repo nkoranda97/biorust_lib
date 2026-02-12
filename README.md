@@ -8,6 +8,7 @@ Install from source
 
 ```bash
 pip install -e .
+```
 
 ## Quickstart
 

@@ -4,9 +4,10 @@ For fun biopython and rust-bio inspired library aimed to create a fast bioinform
 
 ## Install
 
+Install from source
+
 ```bash
-pip install biorust
-```
+pip install -e .
 
 ## Quickstart
 

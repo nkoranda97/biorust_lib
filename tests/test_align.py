@@ -74,9 +74,7 @@ def test_global_dna_longer_no_end_gap():
     scoring = Scoring(
         gap_open=-10.0,
         gap_extend=-0.5,
-        end_gap=True,
-        end_gap_open=0.0,
-        end_gap_extend=0.0,
+        end_gap=False,
     )
     res = align_global(q, t, scoring, traceback=False)
     assert res.score == 56.5

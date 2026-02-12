@@ -35,7 +35,7 @@ fn to_f32(name: &str, value: f64) -> PyResult<f32> {
 impl Scoring {
     #[new]
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (match_score=None, mismatch_score=None, gap_open=-2.0, gap_extend=-1.0, matrix=None, alphabet_size=None, end_gap=false, end_gap_open=None, end_gap_extend=None, use_matrix=None))]
+    #[pyo3(signature = (match_score=None, mismatch_score=None, gap_open=-2.0, gap_extend=-1.0, matrix=None, alphabet_size=None, end_gap=true, end_gap_open=None, end_gap_extend=None, use_matrix=None))]
     fn new(
         match_score: Option<i64>,
         mismatch_score: Option<i64>,
@@ -52,11 +52,11 @@ impl Scoring {
         let gap_extend = to_f32("gap_extend", gap_extend)?;
         let end_gap_open = match end_gap_open {
             Some(v) => to_f32("end_gap_open", v)?,
-            None => gap_open,
+            None => 0.0,
         };
         let end_gap_extend = match end_gap_extend {
             Some(v) => to_f32("end_gap_extend", v)?,
-            None => gap_extend,
+            None => 0.0,
         };
         // If the user explicitly provided match/mismatch scores, use simple scoring.
         // If neither was provided and no explicit matrix, auto-select EDNAFULL/BLOSUM62.
@@ -115,7 +115,7 @@ impl Scoring {
             .map_err(|e| PyValueError::new_err(e.to_string()))?
         };
 
-        if end_gap {
+        if !end_gap {
             scoring = scoring
                 .with_end_gaps(end_gap_open, end_gap_extend)
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -139,7 +139,7 @@ impl Scoring {
 
     #[staticmethod]
     #[allow(clippy::useless_conversion)]
-    #[pyo3(signature = (matrix, alphabet_size, gap_open=-2.0, gap_extend=-1.0, end_gap=false, end_gap_open=None, end_gap_extend=None))]
+    #[pyo3(signature = (matrix, alphabet_size, gap_open=-2.0, gap_extend=-1.0, end_gap=true, end_gap_open=None, end_gap_extend=None))]
     fn with_matrix(
         matrix: Vec<i64>,
         alphabet_size: usize,
@@ -170,16 +170,16 @@ impl Scoring {
         let gap_extend = to_f32("gap_extend", gap_extend)?;
         let end_gap_open = match end_gap_open {
             Some(v) => to_f32("end_gap_open", v)?,
-            None => gap_open,
+            None => 0.0,
         };
         let end_gap_extend = match end_gap_extend {
             Some(v) => to_f32("end_gap_extend", v)?,
-            None => gap_extend,
+            None => 0.0,
         };
         let mut scoring =
             core_align::Scoring::with_matrix(mtx, alphabet_size, gap_open, gap_extend)
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;
-        if end_gap {
+        if !end_gap {
             scoring = scoring
                 .with_end_gaps(end_gap_open, end_gap_extend)
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -199,7 +199,7 @@ impl Scoring {
         if self.inner.matrix().is_some() {
             if self.inner.end_gap() {
                 format!(
-                    "Scoring(matrix=..., alphabet_size={}, gap_open={}, gap_extend={}, end_gap=true, end_gap_open={}, end_gap_extend={})",
+                    "Scoring(matrix=..., alphabet_size={}, gap_open={}, gap_extend={}, end_gap=false, end_gap_open={}, end_gap_extend={})",
                     self.inner
                         .alphabet_size_opt()
                         .expect("alphabet_size must be set when matrix is present"),
@@ -220,7 +220,7 @@ impl Scoring {
             }
         } else if self.inner.end_gap() {
             format!(
-                "Scoring(match_score={}, mismatch_score={}, gap_open={}, gap_extend={}, end_gap=true, end_gap_open={}, end_gap_extend={}, use_matrix={})",
+                "Scoring(match_score={}, mismatch_score={}, gap_open={}, gap_extend={}, end_gap=false, end_gap_open={}, end_gap_extend={}, use_matrix={})",
                 self.inner.match_score(),
                 self.inner.mismatch_score(),
                 self.inner.gap_open(),

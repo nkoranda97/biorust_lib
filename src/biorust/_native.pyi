@@ -14,9 +14,9 @@ class Scoring:
         gap_extend: Penalty for extending a gap (must be <= 0, default: -1.0)
         matrix: Substitution matrix (list of scores or matrix name like 'BLOSUM62', 'EDNAFULL')
         alphabet_size: Required when matrix is a list; size of the alphabet
-        end_gap: Whether to use special penalties for terminal gaps
-        end_gap_open: Penalty for opening terminal gap (if end_gap=True)
-        end_gap_extend: Penalty for extending terminal gap (if end_gap=True)
+        end_gap: Whether to penalize terminal gaps (default: True). Set to False for free end gaps (like EMBOSS -endgap false)
+        end_gap_open: Penalty for opening terminal gap (only when end_gap=False, default: 0.0)
+        end_gap_extend: Penalty for extending terminal gap (only when end_gap=False, default: 0.0)
         use_matrix: Auto-select matrix (EDNAFULL for DNA, BLOSUM62 for protein)
     """
     def __init__(

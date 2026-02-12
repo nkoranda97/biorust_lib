@@ -55,6 +55,7 @@ def test_align_protein():
     res = align_global(q, t, scoring, traceback=False)
     assert res.score == 8.0
 
+
 def test_global_dna_longer():
     q = DNA("ATGAGTCTCTCTGATAAGGACAAGGCTGCTGTGAAAGCCCTATGG")
     t = DNA("CTGTCTCCTGCCGACAAGACCAACGTCAAGGCCGCCTGGGGTAAG")
@@ -68,6 +69,7 @@ def test_global_dna_longer():
     print(res.score)
     assert res.score == 30.0
 
+
 def test_global_dna_longer_no_end_gap():
     q = DNA("ATGAGTCTCTCTGATAAGGACAAGGCTGCTGTGAAAGCCCTATGG")
     t = DNA("CTGTCTCCTGCCGACAAGACCAACGTCAAGGCCGCCTGGGGTAAG")
@@ -79,9 +81,14 @@ def test_global_dna_longer_no_end_gap():
     res = align_global(q, t, scoring, traceback=False)
     assert res.score == 56.5
 
+
 def test_global_protein_no_end_gap():
-    q = Protein("MGDVEKGKKIFIMKCSQCHTVEKGGKHKTGPNLHGLFGRKTGQAPGYSYTAANKNKGIIWGEDTLMEYLENPKKYIPGTKMIFVGIKKKEERADLIAYLKKATNE")
-    t = Protein("MGDVEKGKKIFVQKCAQCHTVEKGGKHKTGPNLHGLFGRKTGQAAGFSYTDANKNKGITWGEDTLMEYLENPKKYIPGTKMIFAGIKKKGERADLIAYLKKATNE")
+    q = Protein(
+        "MGDVEKGKKIFIMKCSQCHTVEKGGKHKTGPNLHGLFGRKTGQAPGYSYTAANKNKGIIWGEDTLMEYLENPKKYIPGTKMIFVGIKKKEERADLIAYLKKATNE"
+    )
+    t = Protein(
+        "MGDVEKGKKIFVQKCAQCHTVEKGGKHKTGPNLHGLFGRKTGQAAGFSYTDANKNKGITWGEDTLMEYLENPKKYIPGTKMIFAGIKKKGERADLIAYLKKATNE"
+    )
     scoring = Scoring(
         gap_open=-10.0,
         gap_extend=-0.5,
@@ -89,6 +96,7 @@ def test_global_protein_no_end_gap():
     )
     res = align_global(q, t, scoring, traceback=False)
     assert res.score == 522.0
+
 
 def test_local_dna_longer_no_end_gap():
     q = DNA("ATGAGTCTCTCTGATAAGGACAAGGCTGCTGTGAAAGCCCTATGG")
@@ -100,9 +108,14 @@ def test_local_dna_longer_no_end_gap():
     res = align_local(q, t, scoring, traceback=False)
     assert res.score == 62.0
 
+
 def test_local_protein_no_end_gap():
-    q = Protein("MGDVEKGKKIFIMKCSQCHTVEKGGKHKTGPNLHGLFGRKTGQAPGYSYTAANKNKGIIWGEDTLMEYLENPKKYIPGTKMIFVGIKKKEERADLIAYLKKATNE")
-    t = Protein("MGDVEKGKKIFVQKCAQCHTVEKGGKHKTGPNLHGLFGRKTGQAAGFSYTDANKNKGITWGEDTLMEYLENPKKYIPGTKMIFAGIKKKGERADLIAYLKKATNE")
+    q = Protein(
+        "MGDVEKGKKIFIMKCSQCHTVEKGGKHKTGPNLHGLFGRKTGQAPGYSYTAANKNKGIIWGEDTLMEYLENPKKYIPGTKMIFVGIKKKEERADLIAYLKKATNE"
+    )
+    t = Protein(
+        "MGDVEKGKKIFVQKCAQCHTVEKGGKHKTGPNLHGLFGRKTGQAAGFSYTDANKNKGITWGEDTLMEYLENPKKYIPGTKMIFAGIKKKGERADLIAYLKKATNE"
+    )
     scoring = Scoring(
         gap_open=-10.0,
         gap_extend=-0.5,

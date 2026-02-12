@@ -124,14 +124,10 @@ impl RnaSeq {
                         candidates[offset] = translate_to_vec(&slice[..len], &BASE_INDEX);
                     }
                 }
-                let idx = best_frame_index([
-                    &candidates[0],
-                    &candidates[1],
-                    &candidates[2],
-                ]);
-                Ok(ProteinSeq::from_bytes_unchecked(
-                    std::mem::take(&mut candidates[idx]),
-                ))
+                let idx = best_frame_index([&candidates[0], &candidates[1], &candidates[2]]);
+                Ok(ProteinSeq::from_bytes_unchecked(std::mem::take(
+                    &mut candidates[idx],
+                )))
             }
         }
     }

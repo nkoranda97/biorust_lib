@@ -7,6 +7,7 @@ mod dna;
 mod dna_record;
 mod dna_record_batch;
 mod fasta;
+mod fastq;
 mod feature;
 mod gapped_dna;
 mod gapped_protein;
@@ -36,6 +37,7 @@ fn _native(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     rna_record_batch::register(m)?;
     report::register(m)?;
     fasta::register(m)?;
+    fastq::register(m)?;
     csv::register(m)?;
     protein::register(m)?;
     batch::register(m)?;

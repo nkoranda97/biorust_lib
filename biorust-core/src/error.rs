@@ -33,6 +33,15 @@ pub enum BioError {
     #[error("fasta io error: {0}")]
     FastaIo(#[from] io::Error),
 
+    #[error("fastq format error at line {line}: {msg}")]
+    FastqFormat { msg: &'static str, line: usize },
+
+    #[error("fastq io error: {0}")]
+    FastqIo(io::Error),
+
+    #[error("invalid fastq quality character: {ch:?}")]
+    FastqInvalidQualityChar { ch: char },
+
     #[error("record batch length mismatch (ids={ids}, descs={descs}, seqs={seqs})")]
     RecordBatchLenMismatch {
         ids: usize,

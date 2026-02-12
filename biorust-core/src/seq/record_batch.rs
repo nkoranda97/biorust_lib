@@ -234,10 +234,7 @@ impl RecordBatch<DnaSeq> {
         })
     }
 
-    pub fn translate_frame(
-        &self,
-        frame: TranslationFrame,
-    ) -> BioResult<RecordBatch<ProteinSeq>> {
+    pub fn translate_frame(&self, frame: TranslationFrame) -> BioResult<RecordBatch<ProteinSeq>> {
         let seqs = self.seqs.translate_frame(frame)?.into_vec();
         let empty_features: Vec<Vec<SeqFeature>> = vec![Vec::new(); seqs.len()];
         Ok(RecordBatch {
@@ -296,10 +293,7 @@ impl RecordBatch<RnaSeq> {
         })
     }
 
-    pub fn translate_frame(
-        &self,
-        frame: TranslationFrame,
-    ) -> BioResult<RecordBatch<ProteinSeq>> {
+    pub fn translate_frame(&self, frame: TranslationFrame) -> BioResult<RecordBatch<ProteinSeq>> {
         let seqs = self.seqs.translate_frame(frame)?.into_vec();
         let empty_features: Vec<Vec<SeqFeature>> = vec![Vec::new(); seqs.len()];
         Ok(RecordBatch {

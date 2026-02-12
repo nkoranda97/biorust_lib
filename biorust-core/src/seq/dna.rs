@@ -129,14 +129,10 @@ impl DnaSeq {
                         candidates[offset] = translate_to_vec(&slice[..len], &BASE_INDEX);
                     }
                 }
-                let idx = best_frame_index([
-                    &candidates[0],
-                    &candidates[1],
-                    &candidates[2],
-                ]);
-                Ok(ProteinSeq::from_bytes_unchecked(
-                    std::mem::take(&mut candidates[idx]),
-                ))
+                let idx = best_frame_index([&candidates[0], &candidates[1], &candidates[2]]);
+                Ok(ProteinSeq::from_bytes_unchecked(std::mem::take(
+                    &mut candidates[idx],
+                )))
             }
         }
     }
@@ -365,17 +361,24 @@ mod tests {
     fn translate_frame_short_sequences() {
         let empty = DnaSeq::new(Vec::new()).unwrap();
         assert_eq!(
-            empty.translate_frame(TranslationFrame::One).unwrap().as_bytes(),
+            empty
+                .translate_frame(TranslationFrame::One)
+                .unwrap()
+                .as_bytes(),
             b""
         );
         let one = DnaSeq::new(b"A".to_vec()).unwrap();
         assert_eq!(
-            one.translate_frame(TranslationFrame::Two).unwrap().as_bytes(),
+            one.translate_frame(TranslationFrame::Two)
+                .unwrap()
+                .as_bytes(),
             b""
         );
         let two = DnaSeq::new(b"AT".to_vec()).unwrap();
         assert_eq!(
-            two.translate_frame(TranslationFrame::Three).unwrap().as_bytes(),
+            two.translate_frame(TranslationFrame::Three)
+                .unwrap()
+                .as_bytes(),
             b""
         );
     }

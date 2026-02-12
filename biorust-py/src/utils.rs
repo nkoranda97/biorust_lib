@@ -120,9 +120,7 @@ pub fn parse_frame(obj: &Bound<'_, PyAny>) -> PyResult<biorust_core::seq::Transl
         if s.eq_ignore_ascii_case("auto") {
             return Ok(TranslationFrame::Auto);
         }
-        return Err(PyValueError::new_err(
-            "frame must be 1, 2, 3, or \"auto\"",
-        ));
+        return Err(PyValueError::new_err("frame must be 1, 2, 3, or \"auto\""));
     }
 
     if let Ok(n) = obj.extract::<i64>() {

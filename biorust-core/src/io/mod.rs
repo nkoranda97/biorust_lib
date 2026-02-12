@@ -1,6 +1,7 @@
 pub mod csv;
 pub mod detect;
 pub mod fasta;
+pub mod fastq;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OnError {

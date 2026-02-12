@@ -137,7 +137,8 @@ class DNA:
         ...
 
     def translate(
-        self, frame: Literal[1, 2, 3] | Literal["auto"] | None = ...,
+        self,
+        frame: Literal[1, 2, 3] | Literal["auto"] | None = ...,
     ) -> Protein:
         """Translate DNA to protein using the standard genetic code.
 
@@ -347,7 +348,8 @@ class RNA:
         ...
 
     def translate(
-        self, frame: Literal[1, 2, 3] | Literal["auto"] | None = ...,
+        self,
+        frame: Literal[1, 2, 3] | Literal["auto"] | None = ...,
     ) -> Protein:
         """Translate RNA to protein using the standard genetic code.
 
@@ -521,7 +523,8 @@ class DNARecordBatch:
     @property
     def skipped(self) -> list["SkippedRecord"]: ...
     def translate(
-        self, frame: Literal[1, 2, 3] | Literal["auto"] | None = ...,
+        self,
+        frame: Literal[1, 2, 3] | Literal["auto"] | None = ...,
     ) -> "ProteinRecordBatch": ...
     @overload
     def filter_empty(self, inplace: Literal[False] = ...) -> "DNARecordBatch": ...
@@ -569,7 +572,8 @@ class RNARecordBatch:
     @property
     def skipped(self) -> list["SkippedRecord"]: ...
     def translate(
-        self, frame: Literal[1, 2, 3] | Literal["auto"] | None = ...,
+        self,
+        frame: Literal[1, 2, 3] | Literal["auto"] | None = ...,
     ) -> "ProteinRecordBatch": ...
     @overload
     def filter_empty(self, inplace: Literal[False] = ...) -> "RNARecordBatch": ...
@@ -682,7 +686,8 @@ class DNABatch:
     def complement(self, inplace: Literal[True]) -> None: ...
     def transcribe(self) -> "RNABatch": ...
     def translate(
-        self, frame: Literal[1, 2, 3] | Literal["auto"] | None = ...,
+        self,
+        frame: Literal[1, 2, 3] | Literal["auto"] | None = ...,
     ) -> "ProteinBatch": ...
     def count(self, needle: DNA) -> list[int]: ...
     def contains(self, needle: DNA) -> list[bool]: ...
@@ -736,7 +741,8 @@ class RNABatch:
     def complement(self, inplace: Literal[True]) -> None: ...
     def back_transcribe(self) -> "DNABatch": ...
     def translate(
-        self, frame: Literal[1, 2, 3] | Literal["auto"] | None = ...,
+        self,
+        frame: Literal[1, 2, 3] | Literal["auto"] | None = ...,
     ) -> "ProteinBatch": ...
     def append(self, seq: RNA) -> None: ...
     def extend(self, seqs: Iterable[RNA] | "RNABatch") -> None: ...
@@ -1060,14 +1066,16 @@ def complement(seq: str | bytes | bytearray | memoryview | DNA) -> DNA:
     """
     ...
 
-def read_fasta(path: str) -> DNARecordBatch:
-    """Read DNA sequences from a FASTA file.
+def read_fasta(
+    path: str, *, alphabet: str = ...
+) -> DNARecordBatch | RNARecordBatch | ProteinRecordBatch:
+    """Read sequences from a FASTA file.
 
     Args:
         path: Path to FASTA file
 
     Returns:
-        DNARecordBatch containing all sequences from the file
+        DNARecordBatch, RNARecordBatch, or ProteinRecordBatch
 
     Raises:
         IOError: If file cannot be read
@@ -1078,8 +1086,10 @@ def read_fasta(path: str) -> DNARecordBatch:
 def write_fasta(
     path: str,
     records: DNARecordBatch
+    | RNARecordBatch
     | ProteinRecordBatch
     | Iterable[DNARecord]
+    | Iterable[RNARecord]
     | Iterable[ProteinRecord],
     *,
     line_width: int = ...,
@@ -1095,6 +1105,47 @@ def write_fasta(
         IOError: If file cannot be written
         ValueError: If records are invalid
         TypeError: If records are not a supported type
+    """
+    ...
+
+def read_fastq(
+    path: str, *, alphabet: str = ...
+) -> DNARecordBatch | RNARecordBatch | ProteinRecordBatch:
+    """Read sequences from a FASTQ file.
+
+    Args:
+        path: Path to FASTQ file
+        alphabet: Sequence alphabet ('auto', 'dna', 'rna', 'protein')
+
+    Returns:
+        DNARecordBatch, RNARecordBatch, or ProteinRecordBatch
+
+    Raises:
+        IOError: If file cannot be read
+        ValueError: If FASTQ format is invalid or sequences contain invalid characters
+    """
+    ...
+
+def write_fastq(
+    path: str,
+    records: DNARecordBatch
+    | RNARecordBatch
+    | ProteinRecordBatch
+    | Iterable[DNARecord]
+    | Iterable[RNARecord]
+    | Iterable[ProteinRecord],
+    *,
+    quality_char: str = ...,
+) -> None:
+    """Write sequences to a FASTQ file.
+
+    Writes records with a constant quality character because sequence records
+    do not currently store per-base quality scores.
+
+    Args:
+        path: Output file path
+        records: Record batch or iterable of records
+        quality_char: Single ASCII character repeated for each base (default: "I")
     """
     ...
 

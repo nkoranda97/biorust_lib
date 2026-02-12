@@ -162,6 +162,22 @@ write_fasta("output.fasta", records)
 write_fasta("output.fasta", records, line_width=80)
 ```
 
+### FASTQ
+
+```python
+from biorust import read_fastq, write_fastq
+
+# Read - auto-detects DNA/RNA/protein
+records = read_fastq("reads.fastq")
+records = read_fastq("reads.fastq", alphabet="dna")
+
+# Write
+# Uses a constant quality character because records currently do not store
+# per-base quality vectors.
+write_fastq("output.fastq", records)
+write_fastq("output.fastq", records, quality_char="J")
+```
+
 ### CSV
 
 Read sequences from a csv by explicitly defining columns

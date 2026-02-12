@@ -35,7 +35,7 @@ fn to_f32(name: &str, value: f64) -> PyResult<f32> {
 impl Scoring {
     #[new]
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (match_score=2, mismatch_score=-1, gap_open=-2.0, gap_extend=-1.0, matrix=None, alphabet_size=None, end_gap=false, end_gap_open=None, end_gap_extend=None, use_matrix=true))]
+    #[pyo3(signature = (match_score=2, mismatch_score=-1, gap_open=-2.0, gap_extend=-1.0, matrix=None, alphabet_size=None, end_gap=false, end_gap_open=None, end_gap_extend=None, use_matrix=false))]
     fn new(
         match_score: i64,
         mismatch_score: i64,

@@ -9,7 +9,7 @@ def test_align_local_dna_traceback():
     scoring = Scoring(gap_open=-2.0, gap_extend=-1.0)
     res = align_local(q, t, scoring, traceback=True)
     assert isinstance(res, AlignmentResult)
-    assert res.score == 20.0
+    assert res.score == 8.0
     assert res.cigar is not None
     assert res.cigar == [("M", 4)]
     q_str, t_str = res.aligned_strings()
@@ -23,7 +23,7 @@ def test_align_global_dna_traceback():
     t = DNA("ACG")
     scoring = Scoring(gap_open=-2.0, gap_extend=-1.0)
     res = align_global(q, t, scoring, traceback=True)
-    assert res.score == 13.0
+    assert res.score == 4.0
     assert res.cigar is not None
     assert sum(n for _, n in res.cigar) == 4
     q_str, t_str = res.aligned_strings()
@@ -54,3 +54,16 @@ def test_align_protein():
     )
     res = align_global(q, t, scoring, traceback=False)
     assert res.score == 8.0
+
+def test_global_dna_longer():
+    q = DNA("ATGAGTCTCTCTGATAAGGACAAGGCTGCTGTGAAAGCCCTATGG")
+    t = DNA("CTGTCTCCTGCCGACAAGACCAACGTCAAGGCCGCCTGGGGTAAG")
+    scoring = Scoring(
+        match_score=2,
+        mismatch_score=-1,
+        gap_open=-2.0,
+        gap_extend=-0.5,
+    )
+    res = align_global(q, t, scoring, traceback=False)
+    print(res.score)
+    assert res.score == 30

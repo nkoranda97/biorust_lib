@@ -33,3 +33,5 @@ src/biorust/_native*.dll
 .claude/
 
 src/biorust/_bin
+
+nick.py

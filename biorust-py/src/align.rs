@@ -35,10 +35,10 @@ fn to_f32(name: &str, value: f64) -> PyResult<f32> {
 impl Scoring {
     #[new]
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (match_score=2, mismatch_score=-1, gap_open=-2.0, gap_extend=-1.0, matrix=None, alphabet_size=None, end_gap=false, end_gap_open=None, end_gap_extend=None, use_matrix=false))]
+    #[pyo3(signature = (match_score=None, mismatch_score=None, gap_open=-2.0, gap_extend=-1.0, matrix=None, alphabet_size=None, end_gap=false, end_gap_open=None, end_gap_extend=None, use_matrix=None))]
     fn new(
-        match_score: i64,
-        mismatch_score: i64,
+        match_score: Option<i64>,
+        mismatch_score: Option<i64>,
         gap_open: f64,
         gap_extend: f64,
         matrix: Option<&Bound<'_, PyAny>>,
@@ -46,7 +46,7 @@ impl Scoring {
         end_gap: bool,
         end_gap_open: Option<f64>,
         end_gap_extend: Option<f64>,
-        use_matrix: bool,
+        use_matrix: Option<bool>,
     ) -> PyResult<Self> {
         let gap_open = to_f32("gap_open", gap_open)?;
         let gap_extend = to_f32("gap_extend", gap_extend)?;
@@ -58,6 +58,11 @@ impl Scoring {
             Some(v) => to_f32("end_gap_extend", v)?,
             None => gap_extend,
         };
+        // If the user explicitly provided match/mismatch scores, use simple scoring.
+        // If neither was provided and no explicit matrix, auto-select EDNAFULL/BLOSUM62.
+        let scores_provided = match_score.is_some() || mismatch_score.is_some();
+        let match_score = match_score.unwrap_or(2);
+        let mismatch_score = mismatch_score.unwrap_or(-1);
 
         let mut scoring = if let Some(matrix) = matrix {
             if let Ok(name) = matrix.extract::<String>() {
@@ -116,9 +121,19 @@ impl Scoring {
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;
         }
 
+        // use_matrix resolution:
+        // - Explicit use_matrix=True/False from user: honor it
+        // - matrix= provided: always use it
+        // - match_score/mismatch_score provided: use simple scoring
+        // - Nothing provided: auto-select EDNAFULL/BLOSUM62
+        let use_matrix = match use_matrix {
+            Some(v) => v || matrix.is_some(),
+            None => matrix.is_some() || !scores_provided,
+        };
+
         Ok(Self {
             inner: scoring,
-            use_matrix: use_matrix || matrix.is_some(),
+            use_matrix,
         })
     }
 
